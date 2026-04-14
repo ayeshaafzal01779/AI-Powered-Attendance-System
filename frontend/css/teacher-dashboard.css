@@ -1,0 +1,359 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #f5f7fa;
+    color: #333;
+}
+
+/* Header */
+.header {
+    background: linear-gradient(135deg, #2c3e50 0%, #2c3e50 100%);
+    color: white;
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.header-left h1 {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+.teacher-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 8px 16px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.logout-btn {
+    background-color: #e74c3c;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.logout-btn:hover {
+    background-color: #e74c3c;
+}
+
+/* Main Container */
+.container {
+    display: flex;
+    min-height: calc(100vh - 80px);
+}
+
+/* Sidebar */
+.sidebar {
+    width: 280px;
+    background-color: white;
+    padding: 30px 20px;
+    border-right: 1px solid #e0e6ef;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar h2 {
+    font-size: 18px;
+    color: #4a5568;
+    margin-bottom: 25px;
+    padding-left: 10px;
+    font-weight: 600;
+}
+
+.course-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+
+}
+
+.course-card {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.course-card:hover {
+    background-color: #edf2f7;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.course-card.active {
+    background-color: #ebf4ff;
+    border-color: #2980b9;
+}
+
+.course-code {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+.course-name {
+    font-size: 14px;
+    color: #718096;
+    margin-bottom: 15px;
+}
+
+.start-btn {
+    background-color: #2980b9;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    width: 100%;
+    transition: background-color 0.3s;
+}
+
+.start-btn:hover {
+    background-color: #20618d;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    padding: 40px;
+}
+
+/* Active Session Card */
+.active-session {
+    background-color: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 40px;
+    border: 1px solid #e2e8f0;
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.session-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.session-time {
+    font-size: 16px;
+    color: #718096;
+    background-color: #f7fafc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.attendance-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+}
+
+.mode-selector {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.mode-btn {
+    padding: 12px 24px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    font-weight: 500;
+    color: #4a5568;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.mode-btn.active {
+    background-color: #2980b9;
+    color: white;
+    border-color: #20618d;
+}
+
+.mode-btn:hover:not(.active) {
+    border-color: #cbd5e0;
+}
+
+.present-count {
+    background-color: #f0fff4;
+    border: 1px solid #c6f6d5;
+    color: #276749;
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.session-controls {
+    display: flex;
+    gap: 15px;
+}
+
+.control-btn {
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.extend-btn {
+    background-color: #edf2f7;
+    color: #4a5568;
+}
+
+.extend-btn:hover {
+    background-color: #e2e8f0;
+}
+
+.close-btn {
+    background-color: #fed7d7;
+    color: #c53030;
+}
+
+.close-btn:hover {
+    background-color: #feb2b2;
+}
+
+.refresh-info {
+    margin-top: 20px;
+    color: #a0aec0;
+    font-size: 14px;
+    text-align: right;
+}
+
+/* QR Code Section */
+.qr-section {
+    background-color: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 40px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.qr-section h3 {
+    font-size: 20px;
+    color: #2d3748;
+    margin-bottom: 25px;
+    text-align: left;
+}
+
+.qr-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.qr-placeholder {
+    width: 250px;
+    height: 250px;
+    background-color: #f7fafc;
+    border: 2px dashed #cbd5e0;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a0aec0;
+}
+
+/* Attendance List */
+.attendance-list {
+    background-color: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+}
+
+.attendance-list h3 {
+    font-size: 20px;
+    color: #2d3748;
+    margin-bottom: 25px;
+}
+
+.attendance-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.attendance-table th {
+    text-align: left;
+    padding: 15px;
+    color: #718096;
+    font-weight: 500;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.attendance-table td {
+    padding: 15px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.attendance-table tr:hover {
+    background-color: #f8fafc;
+}
+
+.attendance-status {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.status-present {
+    background-color: #c6f6d5;
+    color: #276749;
+}
+
+.status-absent {
+    background-color: #fed7d7;
+    color: #c53030;
+}
+
+.attendance-mode {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+/* Hidden Elements */
+.hidden {
+    display: none;
+}

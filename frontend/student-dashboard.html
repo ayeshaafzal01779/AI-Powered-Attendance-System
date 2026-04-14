@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Dashboard</title>
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <!-- Dashboard CSS -->
+    <link rel="stylesheet" href="css/student-dashboard.css">
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div class="header-left">
+        <h1>AI Powered Attendance System</h1>
+    </div>
+    <div class="header-right">
+        <div class="teacher-info">
+            Student Dashboard | Student: <span id="userName">Jane Doe</span>
+        </div>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- CARDS -->
+    <div class="cards">
+
+        <div class="card green">
+            <div class="card-content">
+                <div>
+                    <h3>Overall Attendance</h3>
+                    <p>84%</p>
+                </div>
+                <i class="fa-solid fa-chart-line card-icon"></i>
+            </div>
+        </div>
+
+        <div class="card orange">
+            <div class="card-content">
+                <div>
+                    <h3>This Month</h3>
+                    <p>91%</p>
+                </div>
+                <i class="fa-solid fa-calendar-check card-icon"></i>
+            </div>
+        </div>
+
+        <div class="card blue">
+            <div class="card-content">
+                <div>
+                    <h3>Classes Attended</h3>
+                    <p>45 / 52</p>
+                </div>
+                <i class="fa-solid fa-user-check card-icon"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CHART -->
+    <div class="section">
+        <h3>Attendance Trend</h3>
+        <canvas id="attendanceChart"></canvas>
+    </div>
+
+    <!-- MARK ATTENDANCE -->
+    <div class="section mark-attendance">
+        <h3>Mark Attendance</h3>
+        <button class="qr-btn" onclick="markQR()">Scan QR Code</button>
+        <button class="face-btn" onclick="markFace()">Facial Recognition</button>
+    </div>
+
+    <!-- ACTIVITY -->
+    <div class="section">
+        <h3>Recent Activity</h3>
+        <ul>
+            <li>CS101 – Today 09:05 AM (QR)</li>
+            <li>CS201 – Yesterday 11:15 AM (Face)</li>
+            <li>CS301 – 2 days ago 02:30 PM (QR)</li>
+        </ul>
+    </div>
+
+    <!-- ALERT -->
+    <div class="alert">
+        ⚠️ Your attendance is below 85% in CS201
+    </div>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Dashboard JS -->
+<script src="js/student-dashboard.js"></script>
+
+</body>
+</html>

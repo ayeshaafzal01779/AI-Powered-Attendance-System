@@ -1,0 +1,126 @@
+:root {
+    --sidebar-width: 260px;
+    --primary-color: #2c3e50;
+    --accent-color: #1abc9c; /* Button & sidebar accent */
+    --btn-color: #2890b9;    /* Add User button color */
+    --btn-hover-color: #1c6c8c; /* Button hover color */
+}
+
+body {
+    background-color: #f4f7f6;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    position: fixed;
+    background: var(--primary-color);
+    color: white;
+    z-index: 1000;
+}
+.sidebar-header {
+    padding: 25px;
+    text-align: center;
+    background: rgba(0,0,0,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.nav-link {
+    color: #bdc3c7;
+    padding: 15px 25px;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.nav-link:hover,
+.nav-link.active {
+    color: white;
+    background: #34495e;
+    border-left: 4px solid var(--accent-color);
+}
+
+/* Main Content */
+.main-content {
+    margin-left: var(--sidebar-width);
+    padding: 30px;
+    min-height: 100vh;
+    transition: 0.3s;
+}
+.content-section {
+    display: none;
+}
+.content-section.active {
+    display: block;
+    animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+.stat-card {
+    border-left: 5px solid var(--accent-color);
+    height: 100%;
+}
+.table-container {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Add User Button Custom Style */
+.add-user-btn {
+    background-color: var(--btn-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 25px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+.add-user-btn:hover {
+    background-color: var(--btn-hover-color);
+}
+
+/* Modal Header Color */
+#addUserModal .modal-header {
+    background-color: #2890b9; /* Change this to any color you like */
+    color: white;
+}
+
+#addUserModal .modal-header .modal-title {
+    color: white !important; 
+}
+
+
+
+/* Modal Register Button */
+#addUserModal button[type="submit"] {
+    background-color: var(--btn-color);  /* Normal state */
+    color: white;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    transition: all 0.3s;
+}
+
+/* Hover state */
+#addUserModal button[type="submit"]:hover {
+    background-color: var(--btn-hover-color); /* Correct variable name */
+}

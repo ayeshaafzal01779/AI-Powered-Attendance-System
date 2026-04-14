@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard</title>
+    <link rel="stylesheet" href="css/teacher-dashboard.css">
+
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>AI Powered Attendance System</h1>
+        </div>
+        <div class="header-right">
+            <div class="teacher-info">
+                <span>Teacher Dashboard | Teacher: <span id="teacherName">Dr. Smith</span></span>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <h2>My Courses</h2>
+            <div class="course-list">
+                <div class="course-card active" onclick="selectCourse('CS101', event)">
+                    <div class="course-code">CS101</div>
+                    <div class="course-name">Intro to Programming</div>
+                    <button class="start-btn" onclick="startSession('CS101', event)">Start Session</button>
+                </div>
+                <div class="course-card" onclick="selectCourse('CS201', event)">
+                    <div class="course-code">CS201</div>
+                    <div class="course-name">Data Structures</div>
+                    <button class="start-btn" onclick="startSession('CS201', event)">Start Session</button>
+                </div>
+                <div class="course-card" onclick="selectCourse('CS301', event)">
+                    <div class="course-code">CS301</div>
+                    <div class="course-name">Database Systems</div>
+                    <button class="start-btn" onclick="startSession('CS301', event)">Start Session</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Active Session Section -->
+            <div class="active-session hidden" id="activeSession">
+                <div class="session-header">
+                    <div class="session-title">Active Session: <span id="activeCourseName">CS101 - Intro to Programming</span></div>
+                    <div class="session-time">Started: <span id="startTime">09:00 AM</span> Ends: <span id="endTime">10:30 AM</span></div>
+                </div>
+                
+                <div class="attendance-stats">
+                    <div class="mode-selector" id="modeSelector">
+                        <button class="mode-btn active" onclick="setMode('QR', this)">QR</button>
+                        <button class="mode-btn" onclick="setMode('Face', this)">Face</button>
+                        <button class="mode-btn" onclick="setMode('Manual', this)">Manual</button>
+                    </div>
+                    <div class="present-count">
+                        Present: <span id="presentCount">0</span> / <span id="totalStudents">0</span>
+                    </div>
+                </div>
+                
+                <div class="session-controls">
+                    <button class="control-btn extend-btn" onclick="extendSession()">Extend</button>
+                    <button class="control-btn close-btn" onclick="closeSession()">Close</button>
+                </div>
+                
+                <div class="refresh-info" id="refreshInfo">
+                    Refreshing in <span id="countdown">12</span>s
+                </div>
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="qr-section hidden" id="qrSection">
+                <h3>QR Code</h3>
+                <div class="qr-container">
+                    <div class="qr-placeholder" id="qrPlaceholder">
+                        QR will appear here when session starts
+                    </div>
+                    <img id="qrImg" class="hidden" src="" alt="QR Code" width="250">
+                </div>
+                <p id="qrMsg" style="color:green; margin-top:15px;"></p>
+            </div>
+
+            <!-- Attendance List -->
+            <div class="attendance-list hidden" id="attendanceList">
+                <h3>Attendance List</h3>
+                <table class="attendance-table">
+                    <thead>
+                        <tr>
+                            <th>Student Name</th>
+                            <th>Time</th>
+                            <th>Mode</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody">
+                        <!-- Data will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    
+    <script src="js/teacher-dashboard.js"></script>
+
+</body>
+</html>

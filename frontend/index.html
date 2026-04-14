@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Role Based Login</title>
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+ 
+     <!-- Login CSS -->
+    <link rel="stylesheet" href="css/login.css">
+</head>
+
+<body>
+
+<div class="login-box">
+
+    <div class="role-icon">
+        <i class="fa-solid fa-user-lock"></i>
+    </div>
+
+    <h2>Role Based Login</h2>
+
+    <!-- ROLE SELECTION -->
+    <select id="role">
+        <option value="">Select Role</option>
+        <option value="student">Student</option>
+        <option value="teacher">Teacher</option>
+        <option value="admin">Admin</option>
+    </select>
+
+    <!-- COMMON LOGIN FIELDS -->
+    <input type="text" required id="username" placeholder="Username ">
+    <input type="password" required id="password" placeholder="Password">
+
+    <button type="button" onclick="login()">Login</button>
+
+    <div class="note">
+        * Prototype login – role based redirection only
+    </div>
+
+</div>
+
+<!-- Login JS -->
+<script src="js/login.js"></script>
+</body>
+</html>
