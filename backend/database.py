@@ -11,8 +11,8 @@ def get_db_connection():
         conn = mysql.connector.connect(
             host='localhost',
             user='root',
-            password='root_6600',       # MySQL password
-            database='trimode',
+            password='root_6600',
+            database='TriAttendanceDB',
             port=3306
         )
         return conn
