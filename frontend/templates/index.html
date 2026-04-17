@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tri-AI Attendance System - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="static/css/login.css">
+</head>
+<body>
+<div class="login-box">
+    <div class="role-icon">
+        <i class="fa-solid fa-user-lock"></i>
+    </div>
+    <h2>Tri-AI Attendance System</h2>
+    
+    <input type="email" id="email" placeholder="Email Address">
+    <input type="password" id="password" placeholder="Password">
+    
+    <button onclick="login()">Login</button>
+    
+    <div id="errorMsg" class="error-msg"></div>
+    <div id="loadingMsg" class="loading-msg">
+        <i class="fa-solid fa-spinner fa-spin"></i> Logging in...
+    </div>
+</div>
+<script src="static/js/login.js"></script>
+</body>
+</html>

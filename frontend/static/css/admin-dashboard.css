@@ -1,9 +1,9 @@
 :root {
     --sidebar-width: 260px;
     --primary-color: #2c3e50;
-    --accent-color: #1abc9c; /* Button & sidebar accent */
-    --btn-color: #2890b9;    /* Add User button color */
-    --btn-hover-color: #1c6c8c; /* Button hover color */
+    --accent-color: #1abc9c;
+    --btn-color: #2890b9;
+    --btn-hover-color: #1c6c8c;
 }
 
 body {
@@ -12,7 +12,7 @@ body {
     overflow-x: hidden;
 }
 
-/* Sidebar Styling */
+/* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
     height: 100vh;
@@ -21,12 +21,14 @@ body {
     color: white;
     z-index: 1000;
 }
+
 .sidebar-header {
     padding: 25px;
     text-align: center;
     background: rgba(0,0,0,0.1);
     border-bottom: 1px solid rgba(255,255,255,0.1);
 }
+
 .nav-link {
     color: #bdc3c7;
     padding: 15px 25px;
@@ -34,6 +36,7 @@ body {
     cursor: pointer;
     transition: 0.3s;
 }
+
 .nav-link:hover,
 .nav-link.active {
     color: white;
@@ -46,11 +49,12 @@ body {
     margin-left: var(--sidebar-width);
     padding: 30px;
     min-height: 100vh;
-    transition: 0.3s;
 }
+
 .content-section {
     display: none;
 }
+
 .content-section.active {
     display: block;
     animation: fadeIn 0.5s;
@@ -66,23 +70,36 @@ body {
     border: none;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
 }
+
 .stat-card {
     border-left: 5px solid var(--accent-color);
-    height: 100%;
+    transition: transform 0.3s;
 }
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-card h6 {
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+.stat-card h2 {
+    color: #2c3e50;
+    font-weight: 700;
+}
+
+/* Table Container */
 .table-container {
     background: white;
     border-radius: 12px;
     padding: 20px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
-.stat-card:hover {
-    transform: translateY(-5px);
-}
 
-/* Add User Button Custom Style */
+/* Add User Button */
 .add-user-btn {
     background-color: var(--btn-color);
     color: white;
@@ -93,25 +110,23 @@ body {
     cursor: pointer;
     transition: all 0.3s;
 }
+
 .add-user-btn:hover {
     background-color: var(--btn-hover-color);
 }
 
-/* Modal Header Color */
+/* Modal */
 #addUserModal .modal-header {
-    background-color: #2890b9; /* Change this to any color you like */
+    background-color: #2890b9;
     color: white;
 }
 
 #addUserModal .modal-header .modal-title {
-    color: white !important; 
+    color: white;
 }
 
-
-
-/* Modal Register Button */
 #addUserModal button[type="submit"] {
-    background-color: var(--btn-color);  /* Normal state */
+    background-color: var(--btn-color);
     color: white;
     font-weight: 600;
     border: none;
@@ -120,7 +135,6 @@ body {
     transition: all 0.3s;
 }
 
-/* Hover state */
 #addUserModal button[type="submit"]:hover {
-    background-color: var(--btn-hover-color); /* Correct variable name */
+    background-color: var(--btn-hover-color);
 }

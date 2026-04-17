@@ -54,10 +54,10 @@ body {
 }
 
 .logout-btn:hover {
-    background-color: #e74c3c;
+    background-color: #c0392b;
 }
 
-/* Main Container */
+/* Container */
 .container {
     display: flex;
     min-height: calc(100vh - 80px);
@@ -65,7 +65,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 280px;
+    width: 320px;
     background-color: white;
     padding: 30px 20px;
     border-right: 1px solid #e0e6ef;
@@ -83,28 +83,21 @@ body {
 .course-list {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-
+    gap: 15px;
 }
 
 .course-card {
     background-color: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
-    padding: 20px;
+    padding: 15px;
     transition: all 0.3s;
-    cursor: pointer;
 }
 
 .course-card:hover {
     background-color: #edf2f7;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.course-card.active {
-    background-color: #ebf4ff;
-    border-color: #2980b9;
 }
 
 .course-code {
@@ -117,7 +110,13 @@ body {
 .course-name {
     font-size: 14px;
     color: #718096;
-    margin-bottom: 15px;
+    margin-bottom: 8px;
+}
+
+.course-detail {
+    font-size: 12px;
+    color: #a0aec0;
+    margin-bottom: 12px;
 }
 
 .start-btn {
@@ -139,16 +138,16 @@ body {
 /* Main Content */
 .main-content {
     flex: 1;
-    padding: 40px;
+    padding: 30px;
 }
 
-/* Active Session Card */
+/* Active Session */
 .active-session {
     background-color: white;
     border-radius: 15px;
-    padding: 30px;
+    padding: 25px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-    margin-bottom: 40px;
+    margin-bottom: 30px;
     border: 1px solid #e2e8f0;
 }
 
@@ -156,43 +155,32 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
+    margin-bottom: 20px;
 }
 
 .session-title {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
     color: #2d3748;
-}
-
-.session-time {
-    font-size: 16px;
-    color: #718096;
-    background-color: #f7fafc;
-    padding: 8px 16px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
 }
 
 .attendance-stats {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
 }
 
 .mode-selector {
     display: flex;
-    gap: 15px;
-    margin-bottom: 30px;
+    gap: 10px;
 }
 
 .mode-btn {
-    padding: 12px 24px;
+    padding: 10px 20px;
     border: 2px solid #e2e8f0;
     border-radius: 8px;
     background: white;
     font-weight: 500;
-    color: #4a5568;
     cursor: pointer;
     transition: all 0.3s;
 }
@@ -203,42 +191,28 @@ body {
     border-color: #20618d;
 }
 
-.mode-btn:hover:not(.active) {
-    border-color: #cbd5e0;
-}
-
 .present-count {
     background-color: #f0fff4;
     border: 1px solid #c6f6d5;
     color: #276749;
-    padding: 15px 25px;
+    padding: 10px 20px;
     border-radius: 10px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
-    text-align: center;
 }
 
 .session-controls {
     display: flex;
     gap: 15px;
+    margin-top: 20px;
 }
 
 .control-btn {
-    padding: 12px 30px;
+    padding: 10px 25px;
     border: none;
     border-radius: 8px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.3s;
-}
-
-.extend-btn {
-    background-color: #edf2f7;
-    color: #4a5568;
-}
-
-.extend-btn:hover {
-    background-color: #e2e8f0;
 }
 
 .close-btn {
@@ -250,35 +224,19 @@ body {
     background-color: #feb2b2;
 }
 
-.refresh-info {
-    margin-top: 20px;
-    color: #a0aec0;
-    font-size: 14px;
-    text-align: right;
-}
-
-/* QR Code Section */
+/* QR Section */
 .qr-section {
     background-color: white;
     border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-    margin-bottom: 40px;
-    border: 1px solid #e2e8f0;
+    padding: 25px;
     text-align: center;
+    margin-bottom: 30px;
+    border: 1px solid #e2e8f0;
 }
 
 .qr-section h3 {
-    font-size: 20px;
-    color: #2d3748;
-    margin-bottom: 25px;
     text-align: left;
-}
-
-.qr-container {
-    display: flex;
-    justify-content: center;
-    margin: 20px 0;
+    margin-bottom: 20px;
 }
 
 .qr-placeholder {
@@ -290,22 +248,17 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0 auto;
     color: #a0aec0;
+    flex-direction: column;
 }
 
 /* Attendance List */
 .attendance-list {
     background-color: white;
     border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    padding: 25px;
     border: 1px solid #e2e8f0;
-}
-
-.attendance-list h3 {
-    font-size: 20px;
-    color: #2d3748;
-    margin-bottom: 25px;
 }
 
 .attendance-table {
@@ -315,45 +268,49 @@ body {
 
 .attendance-table th {
     text-align: left;
-    padding: 15px;
-    color: #718096;
-    font-weight: 500;
+    padding: 12px;
     border-bottom: 2px solid #e2e8f0;
+    color: #718096;
 }
 
 .attendance-table td {
-    padding: 15px;
+    padding: 12px;
     border-bottom: 1px solid #f1f5f9;
-}
-
-.attendance-table tr:hover {
-    background-color: #f8fafc;
-}
-
-.attendance-status {
-    display: inline-block;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 14px;
-    font-weight: 500;
 }
 
 .status-present {
     background-color: #c6f6d5;
     color: #276749;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
 }
 
 .status-absent {
     background-color: #fed7d7;
     color: #c53030;
-}
-
-.attendance-mode {
-    color: #2c3e50;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
     font-weight: 500;
+    display: inline-block;
 }
 
-/* Hidden Elements */
 .hidden {
     display: none;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 20px;
+    color: #718096;
+}
+
+.refresh-info {
+    margin-top: 15px;
+    font-size: 12px;
+    color: #a0aec0;
+    text-align: right;
 }
