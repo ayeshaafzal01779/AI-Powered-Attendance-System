@@ -1,39 +1,60 @@
-// Role Check
+// ============================================
+// ADMIN DASHBOARD - WITH DYNAMIC URL
+// ============================================
+
+const API_BASE_URL = 'http://' + window.location.hostname + ':5000';
+
+// Get user from localStorage
 const user = JSON.parse(localStorage.getItem('user'));
 const userId = localStorage.getItem('userId');
 const userRole = localStorage.getItem('userRole');
 
+// Role check
 if (!user || !userId || userRole !== 'Admin') {
     alert('Access Denied. Admin only.');
     window.location.href = '/';
 }
 
+// ============================================
+// API CALL FUNCTION
+// ============================================
+
 async function apiCall(url, options = {}) {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    
     const defaultOptions = {
+        method: 'GET',
+        credentials: 'include',
         headers: {
-            'Content-Type': 'application/json',
-            'X-User-Id': userId
+            'Content-Type': 'application/json'
         }
     };
     
     const mergedOptions = { ...defaultOptions, ...options };
-    mergedOptions.headers = { ...defaultOptions.headers, ...options.headers };
     
-    const response = await fetch(url, mergedOptions);
-    
-    if (response.status === 401 || response.status === 403) {
-        alert('Session expired. Please login again.');
-        localStorage.clear();
-        window.location.href = '/';
+    try {
+        const response = await fetch(fullUrl, mergedOptions);
+        
+        if (response.status === 401 || response.status === 403) {
+            alert('Session expired. Please login again.');
+            localStorage.clear();
+            window.location.href = '/';
+            return null;
+        }
+        return response;
+    } catch (error) {
+        console.error('API call error:', error);
         return null;
     }
-    
-    return response;
 }
+
+// ============================================
+// LOAD STATS
+// ============================================
 
 async function loadStats() {
     try {
-        const response = await apiCall('http://127.0.0.1:5000/admin_stats');
+        const response = await apiCall('/admin_stats');
         if (!response) return;
         
         const data = await response.json();
@@ -53,9 +74,13 @@ async function loadStats() {
     }
 }
 
+// ============================================
+// LOAD STUDENTS
+// ============================================
+
 async function loadStudents() {
     try {
-        const response = await apiCall('http://127.0.0.1:5000/admin_students');
+        const response = await apiCall('/admin_students');
         if (!response) return;
         
         const data = await response.json();
@@ -81,9 +106,13 @@ async function loadStudents() {
     }
 }
 
+// ============================================
+// LOAD TEACHERS
+// ============================================
+
 async function loadTeachers() {
     try {
-        const response = await apiCall('http://127.0.0.1:5000/admin_teachers');
+        const response = await apiCall('/admin_teachers');
         if (!response) return;
         
         const data = await response.json();
@@ -109,6 +138,10 @@ async function loadTeachers() {
     }
 }
 
+// ============================================
+// SECTION NAVIGATION
+// ============================================
+
 function showSection(sectionId) {
     document.querySelectorAll('.content-section').forEach(section => {
         section.classList.remove('active');
@@ -120,10 +153,18 @@ function showSection(sectionId) {
     if (sectionId === 'teachers') loadTeachers();
 }
 
+// ============================================
+// LOGOUT
+// ============================================
+
 function logout() {
     localStorage.clear();
     window.location.href = '/';
 }
+
+// ============================================
+// CHART
+// ============================================
 
 let statsChart = null;
 
@@ -157,6 +198,10 @@ function initChart() {
         }
     });
 }
+
+// ============================================
+// INITIALIZE
+// ============================================
 
 loadStats();
 initChart();

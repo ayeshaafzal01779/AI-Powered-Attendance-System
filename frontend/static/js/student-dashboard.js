@@ -1,8 +1,7 @@
 // ============================================
-// STUDENT DASHBOARD - WITH DYNAMIC URL (FIXED)
+// STUDENT DASHBOARD - WITH DYNAMIC URL
 // ============================================
 
-// Get base URL dynamically (works on any device)
 const API_BASE_URL = 'http://' + window.location.hostname + ':5000';
 
 // Get user from localStorage
@@ -25,11 +24,10 @@ let isScanning = false;
 document.getElementById('userName').textContent = user.name;
 
 // ============================================
-// API CALL FUNCTION WITH DYNAMIC URL
+// API CALL FUNCTION
 // ============================================
 
 async function apiCall(url, options = {}) {
-    // If URL is relative, use API_BASE_URL
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     
     const defaultOptions = {
@@ -51,7 +49,6 @@ async function apiCall(url, options = {}) {
             window.location.href = '/';
             return null;
         }
-        
         return response;
     } catch (error) {
         console.error('API call error:', error);
@@ -66,7 +63,6 @@ async function apiCall(url, options = {}) {
 function showMessage(text, type) {
     let msgDiv = document.getElementById('message');
     
-    // Create message div if not exists
     if (!msgDiv) {
         msgDiv = document.createElement('div');
         msgDiv.id = 'message';
@@ -277,7 +273,6 @@ async function onQRSuccess(decodedText) {
     
     console.log("QR Scanned:", decodedText);
     
-    // Parse QR data: format "SESSION:{session_id}:{timestamp}:{random}"
     const parts = decodedText.split(':');
     
     if (parts.length < 2 || parts[0] !== 'SESSION') {
@@ -303,7 +298,7 @@ function onQRFailure(errorMessage) {
 }
 
 // ============================================
-// MARK ATTENDANCE - USING DYNAMIC URL
+// MARK ATTENDANCE
 // ============================================
 
 async function markAttendance(sessionId, mode) {
@@ -320,14 +315,14 @@ async function markAttendance(sessionId, mode) {
         const data = await response.json();
         
         if (data.status === 'success') {
-            showMessage('✅ Attendance marked successfully!', 'success');
-            loadAttendance(); // Refresh dashboard data
+            showMessage('Attendance marked successfully!', 'success');
+            loadAttendance();
         } else {
-            showMessage('❌ ' + (data.message || 'Failed to mark attendance'), 'error');
+            showMessage('' + (data.message || 'Failed to mark attendance'), 'error');
         }
     } catch (err) {
         console.error('Error marking attendance:', err);
-        showMessage('❌ Network error. Please try again.', 'error');
+        showMessage('Network error. Please try again.', 'error');
     }
 }
 
@@ -353,7 +348,7 @@ function markFace() {
 }
 
 // ============================================
-// LOGOUT - USING DYNAMIC URL
+// LOGOUT
 // ============================================
 
 async function logout() {
