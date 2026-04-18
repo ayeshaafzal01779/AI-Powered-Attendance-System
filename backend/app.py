@@ -1,16 +1,13 @@
 from flask import Flask, request, jsonify, render_template, session
 from flask_cors import CORS
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 import qrcode
 import io
 import base64
 import uuid
 import os
-import random
-import string
 from functools import wraps
 from database import get_db_connection
-from waitress import serve
 
 # Flask app setup
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,21 +17,10 @@ app = Flask(__name__,
             static_url_path='/static')
 
 # CORS setup - Allow credentials
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
-
-app.config.update(
-    SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=False
-)
+CORS(app, supports_credentials=True, origins=['http://127.0.0.1:5000', 'http://localhost:5000'])
 
 # Required for session
 app.secret_key = "your_secret_key_123"
-
-# QR Code Configuration
-QR_EXPIRY_SECONDS = 15
-
-# Store active QR codes with expiry (in production, use Redis or database)
-active_qr_codes = {}
 
 # ============================================
 # ROLE PROTECTION DECORATORS
@@ -44,8 +30,10 @@ def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Check login session
             if 'user_id' not in session:
                 return jsonify({"status": "error", "message": "Login required"}), 401
+            # Check role
             if session.get('role') not in allowed_roles:
                 return jsonify({"status": "error", "message": "Access denied"}), 403
             return f(*args, **kwargs)
@@ -136,6 +124,7 @@ def login():
     if not user:
         return jsonify({"status": "error", "message": "Invalid email or password"}), 401
     
+    # Store session
     session['user_id'] = user['user_id']
     session['role'] = user['role']
     
@@ -280,7 +269,6 @@ def start_session():
     now = datetime.now()
     session_token = str(uuid.uuid4())
 
-    # Check if active session already exists
     cursor.execute(
         """SELECT session_id FROM attendance_sessions 
            WHERE section_id = %s AND session_date = %s AND status = 'Active'""",
@@ -294,28 +282,18 @@ def start_session():
         cursor.execute(
             """INSERT INTO attendance_sessions 
                (section_id, teacher_id, session_date, start_time, session_token, mode, status) 
-               VALUES (%s, %s, %s, %s, %s, 'QR', 'Active')""",
+               VALUES (%s, %s, %s, %s, %s, 'Hybrid', 'Active')""",
             (section_id, teacher_id, today, now, session_token)
         )
         session_id = cursor.lastrowid
         conn.commit()
 
-    # Generate QR code with timestamp
-    qr_timestamp = now.timestamp()
-    qr_random = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    qr_data = f"SESSION:{session_id}:{qr_timestamp}:{qr_random}"
-    
+    qr_data = f"SESSION:{session_id}:{now.timestamp()}"
     qr_img = qrcode.make(qr_data)
+
     buf = io.BytesIO()
     qr_img.save(buf, format="PNG")
     qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-
-    # Store QR info for validation
-    active_qr_codes[session_id] = {
-        'qr_data': qr_data,
-        'timestamp': qr_timestamp,
-        'expires_at': qr_timestamp + QR_EXPIRY_SECONDS
-    }
 
     cursor.execute(
         "UPDATE attendance_sessions SET qr_code = %s, qr_generated_at = %s WHERE session_id = %s",
@@ -329,64 +307,7 @@ def start_session():
     return jsonify({
         "status": "success",
         "session_id": session_id,
-        "qr_code": qr_base64,
-        "expires_in": QR_EXPIRY_SECONDS
-    })
-
-@app.route('/refresh_qr', methods=['POST'])
-@role_required(['Teacher'])
-def refresh_qr():
-    data = request.json
-    session_id = data.get('session_id')
-    
-    if not session_id:
-        return jsonify({"status": "error", "message": "Session ID missing"}), 400
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check if session is still active
-    cursor.execute(
-        "SELECT status FROM attendance_sessions WHERE session_id = %s",
-        (session_id,)
-    )
-    result = cursor.fetchone()
-    
-    if not result or result[0] != 'Active':
-        cursor.close()
-        conn.close()
-        return jsonify({"status": "error", "message": "Session is not active"}), 400
-    
-    now = datetime.now()
-    qr_timestamp = now.timestamp()
-    qr_random = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    qr_data = f"SESSION:{session_id}:{qr_timestamp}:{qr_random}"
-    
-    qr_img = qrcode.make(qr_data)
-    buf = io.BytesIO()
-    qr_img.save(buf, format="PNG")
-    qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    
-    # Update stored QR info
-    active_qr_codes[session_id] = {
-        'qr_data': qr_data,
-        'timestamp': qr_timestamp,
-        'expires_at': qr_timestamp + QR_EXPIRY_SECONDS
-    }
-    
-    cursor.execute(
-        "UPDATE attendance_sessions SET qr_code = %s, qr_generated_at = %s WHERE session_id = %s",
-        (qr_base64, now, session_id)
-    )
-    conn.commit()
-    
-    cursor.close()
-    conn.close()
-    
-    return jsonify({
-        "status": "success",
-        "qr_code": qr_base64,
-        "expires_in": QR_EXPIRY_SECONDS
+        "qr_code": qr_base64
     })
 
 @app.route('/attendance_list', methods=['GET'])
@@ -445,70 +366,10 @@ def close_session():
     )
     conn.commit()
     
-    # Remove from active QR codes
-    if session_id in active_qr_codes:
-        del active_qr_codes[session_id]
-    
     cursor.close()
     conn.close()
     
     return jsonify({"status": "success", "message": "Session closed successfully"})
-
-@app.route('/generate_qr', methods=['POST'])
-@role_required(['Teacher'])
-def generate_qr():
-    data = request.json
-    session_id = data.get('session_id')
-    
-    if not session_id:
-        return jsonify({"status": "error", "message": "Session ID missing"}), 400
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check if session is active
-    cursor.execute(
-        "SELECT status FROM attendance_sessions WHERE session_id = %s",
-        (session_id,)
-    )
-    result = cursor.fetchone()
-    
-    if not result or result[0] != 'Active':
-        cursor.close()
-        conn.close()
-        return jsonify({"status": "error", "message": "Session is not active"}), 400
-    
-    now = datetime.now()
-    qr_timestamp = now.timestamp()
-    qr_random = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    qr_data = f"SESSION:{session_id}:{qr_timestamp}:{qr_random}"
-    
-    qr_img = qrcode.make(qr_data)
-    buf = io.BytesIO()
-    qr_img.save(buf, format="PNG")
-    qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    
-    # Store QR info
-    active_qr_codes[session_id] = {
-        'qr_data': qr_data,
-        'timestamp': qr_timestamp,
-        'expires_at': qr_timestamp + QR_EXPIRY_SECONDS
-    }
-    
-    cursor.execute(
-        "UPDATE attendance_sessions SET qr_code = %s, qr_generated_at = %s WHERE session_id = %s",
-        (qr_base64, now, session_id)
-    )
-    conn.commit()
-    
-    cursor.close()
-    conn.close()
-    
-    return jsonify({
-        "status": "success",
-        "qr_code": qr_base64,
-        "expires_in": QR_EXPIRY_SECONDS
-    })
 
 # ============================================
 # STUDENT APIs
@@ -521,24 +382,9 @@ def mark_attendance():
     student_id = session.get('user_id')
     session_id = data.get('session_id')
     mode = data.get('mode', 'QR')
-    scanned_data = data.get('qr_data')  # Full QR data from scan
 
     if not session_id:
         return jsonify({"status": "error", "message": "Session ID missing"}), 400
-
-    # Validate QR code if mode is QR
-    if mode == 'QR' and scanned_data:
-        if session_id not in active_qr_codes:
-            return jsonify({"status": "error", "message": "QR code expired or invalid"}), 400
-        
-        qr_info = active_qr_codes[session_id]
-        current_time = datetime.now().timestamp()
-        
-        if current_time > qr_info['expires_at']:
-            return jsonify({"status": "error", "message": "QR code expired. Please scan again."}), 400
-        
-        if qr_info['qr_data'] != scanned_data:
-            return jsonify({"status": "error", "message": "Invalid QR code"}), 400
 
     conn = get_db_connection()
     if conn is None:
@@ -575,19 +421,15 @@ def mark_attendance():
 
     # Insert attendance
     cursor.execute("""
-        INSERT INTO attendance_records (session_id, student_id, mode, status, sync_status, marked_at) 
-        VALUES (%s, %s, %s, 'Present', 'Synced', %s)
-    """, (session_id, student_id, mode, datetime.now()))
+        INSERT INTO attendance_records (session_id, student_id, mode, status, sync_status) 
+        VALUES (%s, %s, %s, 'Present', 'Synced')
+    """, (session_id, student_id, mode))
     conn.commit()
     
     cursor.close()
     conn.close()
 
-    return jsonify({
-        "status": "success", 
-        "message": "Attendance marked successfully!",
-        "marked_at": datetime.now().isoformat()
-    })
+    return jsonify({"status": "success", "message": "Attendance marked successfully!"})
 
 @app.route('/my_attendance', methods=['GET'])
 @role_required(['Student'])
@@ -601,21 +443,22 @@ def get_my_attendance():
     cursor = conn.cursor(dictionary=True)
     
     cursor.execute("""
-        SELECT 
-            c.course_code,
-            c.course_name,
-            COUNT(DISTINCT ar.record_id) as present_days,
-            COUNT(DISTINCT ats.session_id) as total_sessions,
-            ROUND(COUNT(DISTINCT ar.record_id) * 100.0 / NULLIF(COUNT(DISTINCT ats.session_id), 0), 2) as percentage
-        FROM student_enrollment se
-        JOIN sections s ON se.section_id = s.section_id
-        JOIN course_semester cs ON s.cs_id = cs.cs_id
-        JOIN courses c ON cs.course_id = c.course_id
-        LEFT JOIN attendance_sessions ats ON ats.section_id = s.section_id
-        LEFT JOIN attendance_records ar ON ar.session_id = ats.session_id AND ar.student_id = se.student_id
-        WHERE se.student_id = %s
-        GROUP BY c.course_id
-    """, (student_id,))
+    SELECT
+        c.course_code,
+        c.course_name,
+        COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) as present_days,
+        COUNT(DISTINCT ar.record_id) as total_sessions,
+        ROUND(
+            COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) * 100.0 /
+            NULLIF(COUNT(DISTINCT ar.record_id), 0),
+        2) as percentage
+    FROM attendance_records ar
+    JOIN sections sec ON ar.section_id = sec.section_id
+    JOIN course_semester cs ON sec.cs_id = cs.cs_id
+    JOIN courses c ON cs.course_id = c.course_id
+    WHERE ar.student_id = %s
+    GROUP BY c.course_code, c.course_name
+""", (session['user_id'],))
     
     attendance = cursor.fetchall()
     cursor.close()
