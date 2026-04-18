@@ -1,6 +1,8 @@
 // ============================================
-// TEACHER DASHBOARD - COMPLETE UPDATED
+// TEACHER DASHBOARD - WITH DYNAMIC URL
 // ============================================
+
+const API_BASE_URL = 'http://' + window.location.hostname + ':5000';
 
 // Get user from localStorage
 const user = JSON.parse(localStorage.getItem('user'));
@@ -34,6 +36,8 @@ if (todayDateEl) todayDateEl.textContent = today.toLocaleDateString();
 // ============================================
 
 async function apiCall(url, options = {}) {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    
     const defaultOptions = {
         method: 'GET',
         credentials: 'include',
@@ -43,7 +47,7 @@ async function apiCall(url, options = {}) {
     const mergedOptions = { ...defaultOptions, ...options };
     
     try {
-        const response = await fetch(url, mergedOptions);
+        const response = await fetch(fullUrl, mergedOptions);
         
         if (response.status === 401 || response.status === 403) {
             alert('Session expired. Please login again.');
@@ -67,7 +71,7 @@ async function loadCourses() {
     if (!courseList) return;
     
     try {
-        const response = await apiCall('http://127.0.0.1:5000/teacher_courses');
+        const response = await apiCall('/teacher_courses');
         if (!response) return;
         
         const data = await response.json();
@@ -109,7 +113,7 @@ async function startSession(sectionId, courseCode) {
     }
     
     try {
-        const response = await fetch('http://127.0.0.1:5000/start_session', {
+        const response = await fetch(`${API_BASE_URL}/start_session`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -121,7 +125,6 @@ async function startSession(sectionId, courseCode) {
         if (data.status === 'success') {
             currentSessionId = data.session_id;
             
-            // Show UI sections
             const activeSession = document.getElementById('activeSession');
             const modeSelector = document.getElementById('modeSelector');
             const attendanceList = document.getElementById('attendanceList');
@@ -133,10 +136,8 @@ async function startSession(sectionId, courseCode) {
             const activeCourseName = document.getElementById('activeCourseName');
             if (activeCourseName) activeCourseName.textContent = courseCode;
             
-            // No default mode selected
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
             
-            // Start auto-refresh
             if (refreshInterval) clearInterval(refreshInterval);
             refreshInterval = setInterval(loadAttendanceList, 5000);
             
@@ -154,15 +155,13 @@ async function startSession(sectionId, courseCode) {
 }
 
 // ============================================
-// SELECT MODE - FIXED
+// SELECT MODE
 // ============================================
 
 function selectMode(mode, button) {
-    // Update active button
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
     button.classList.add('active');
     
-    // Hide all sections
     const qrSection = document.getElementById('qrSection');
     const faceSection = document.getElementById('faceSection');
     const manualSection = document.getElementById('manualSection');
@@ -171,11 +170,9 @@ function selectMode(mode, button) {
     if (faceSection) faceSection.classList.add('hidden');
     if (manualSection) manualSection.classList.add('hidden');
     
-    // Show selected section
     if (mode === 'QR') {
         if (qrSection) qrSection.classList.remove('hidden');
         
-        // Get elements
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const qrImg = document.getElementById('qrImg');
         const startBtn = document.getElementById('startQrBtn');
@@ -184,7 +181,6 @@ function selectMode(mode, button) {
         const qrCountdown = document.getElementById('qrCountdown');
         const qrMsg = document.getElementById('qrMsg');
         
-        // Update placeholder content
         if (qrPlaceholder) {
             qrPlaceholder.innerHTML = `
                 <i class="fas fa-qrcode fa-5x mb-3"></i>
@@ -200,7 +196,6 @@ function selectMode(mode, button) {
         if (refreshBtn) refreshBtn.classList.add('hidden');
         if (qrCountdown) qrCountdown.textContent = '--';
         
-        // Update message
         if (qrMsg) {
             qrMsg.innerHTML = '<i class="fas fa-qrcode"></i> QR mode selected. Click "Start QR" to begin.';
             qrMsg.style.color = '#2980b9';
@@ -208,7 +203,6 @@ function selectMode(mode, button) {
         
         isQRCodeActive = false;
         
-        // Clear intervals
         if (qrRefreshInterval) clearInterval(qrRefreshInterval);
         if (countdownInterval) clearInterval(countdownInterval);
         qrRefreshInterval = null;
@@ -244,7 +238,7 @@ async function activateQRMode() {
     startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
     
     try {
-        const response = await fetch('http://127.0.0.1:5000/generate_qr', {
+        const response = await fetch(`${API_BASE_URL}/generate_qr`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -256,22 +250,18 @@ async function activateQRMode() {
         if (data.status === 'success') {
             isQRCodeActive = true;
             
-            // Hide placeholder, show QR image
             if (qrPlaceholder) qrPlaceholder.classList.add('hidden');
             if (qrImg) {
                 qrImg.classList.remove('hidden');
                 qrImg.src = 'data:image/png;base64,' + data.qr_code;
             }
             
-            // Update buttons
             startBtn.classList.add('hidden');
             if (stopBtn) stopBtn.classList.remove('hidden');
             if (refreshBtn) refreshBtn.classList.remove('hidden');
             
-            // Start countdown
             startCountdown(data.expires_in || 15);
             
-            // Set refresh interval
             if (qrRefreshInterval) clearInterval(qrRefreshInterval);
             qrRefreshInterval = setInterval(refreshQRCode, (data.expires_in || 15) * 1000);
             
@@ -301,13 +291,11 @@ function deactivateQRMode() {
     
     isQRCodeActive = false;
     
-    // Clear intervals
     if (qrRefreshInterval) clearInterval(qrRefreshInterval);
     if (countdownInterval) clearInterval(countdownInterval);
     qrRefreshInterval = null;
     countdownInterval = null;
     
-    // Reset UI
     const qrPlaceholder = document.getElementById('qrPlaceholder');
     const qrImg = document.getElementById('qrImg');
     const startBtn = document.getElementById('startQrBtn');
@@ -316,7 +304,6 @@ function deactivateQRMode() {
     const qrCountdown = document.getElementById('qrCountdown');
     const qrMsg = document.getElementById('qrMsg');
     
-    // Show placeholder with proper message
     if (qrPlaceholder) {
         qrPlaceholder.innerHTML = `
             <i class="fas fa-qrcode fa-5x mb-3"></i>
@@ -332,7 +319,6 @@ function deactivateQRMode() {
     if (refreshBtn) refreshBtn.classList.add('hidden');
     if (qrCountdown) qrCountdown.textContent = '--';
     
-    // Reset button state
     if (startBtn) {
         startBtn.disabled = false;
         startBtn.innerHTML = '<i class="fas fa-play"></i> Start QR';
@@ -378,7 +364,7 @@ async function refreshQRCode() {
     if (!currentSessionId || !isQRCodeActive) return;
     
     try {
-        const response = await fetch('http://127.0.0.1:5000/refresh_qr', {
+        const response = await fetch(`${API_BASE_URL}/refresh_qr`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -394,10 +380,8 @@ async function refreshQRCode() {
             }
             startCountdown(data.expires_in || 15);
             
-            // Show refresh message temporarily
             const qrMsg = document.getElementById('qrMsg');
             if (qrMsg) {
-                const originalMsg = qrMsg.innerHTML;
                 qrMsg.innerHTML = '<i class="fas fa-sync-alt"></i> QR Code refreshed!';
                 setTimeout(() => {
                     if (isQRCodeActive) {
@@ -425,7 +409,7 @@ async function loadAttendanceList() {
     if (!currentSessionId) return;
     
     try {
-        const response = await fetch(`http://127.0.0.1:5000/attendance_list?session_id=${currentSessionId}`, {
+        const response = await fetch(`${API_BASE_URL}/attendance_list?session_id=${currentSessionId}`, {
             credentials: 'include'
         });
         const data = await response.json();
@@ -476,7 +460,7 @@ async function closeSession() {
     if (!confirm('Are you sure you want to close this session?')) return;
     
     try {
-        await fetch('http://127.0.0.1:5000/close_session', {
+        await fetch(`${API_BASE_URL}/close_session`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -486,7 +470,6 @@ async function closeSession() {
         currentSessionId = null;
         isQRCodeActive = false;
         
-        // Clear intervals
         if (refreshInterval) clearInterval(refreshInterval);
         if (qrRefreshInterval) clearInterval(qrRefreshInterval);
         if (countdownInterval) clearInterval(countdownInterval);
@@ -494,7 +477,6 @@ async function closeSession() {
         qrRefreshInterval = null;
         countdownInterval = null;
         
-        // Hide UI sections
         const activeSession = document.getElementById('activeSession');
         const modeSelector = document.getElementById('modeSelector');
         const qrSection = document.getElementById('qrSection');
@@ -505,7 +487,6 @@ async function closeSession() {
         if (qrSection) qrSection.classList.add('hidden');
         if (attendanceList) attendanceList.classList.add('hidden');
         
-        // Reset QR display
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const qrImg = document.getElementById('qrImg');
         const qrCountdown = document.getElementById('qrCountdown');
@@ -527,7 +508,6 @@ async function closeSession() {
         if (stopBtn) stopBtn.classList.add('hidden');
         if (refreshBtn) refreshBtn.classList.add('hidden');
         
-        // Reset mode buttons
         document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
         
         loadCourses();
@@ -544,7 +524,7 @@ async function closeSession() {
 
 async function logout() {
     try {
-        await fetch('http://127.0.0.1:5000/logout', {
+        await fetch(`${API_BASE_URL}/logout`, {
             method: 'POST',
             credentials: 'include'
         });

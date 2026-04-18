@@ -1,4 +1,9 @@
-const API_BASE_URL = window.location.origin;
+// ============================================
+// LOGIN JS - WITH DYNAMIC URL
+// ============================================
+
+const API_BASE_URL = 'http://' + window.location.hostname + ':5000';
+
 async function login() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
@@ -17,9 +22,9 @@ async function login() {
     loadingMsg.style.display = 'block';
     
     try {
-        const response = await fetch('http://127.0.0.1:5000/login', {
+        const response = await fetch(`${API_BASE_URL}/login`, {
             method: 'POST',
-            credentials: 'include',  // IMPORTANT: Saves session cookie
+            credentials: 'include',
             headers: { 
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -31,7 +36,6 @@ async function login() {
         loadingMsg.style.display = 'none';
         
         if (response.ok && data.status === 'success') {
-            // Store basic info (session handles the rest)
             localStorage.setItem('user', JSON.stringify(data.user));
             localStorage.setItem('userId', data.user.id);
             localStorage.setItem('userRole', data.user.role);
@@ -52,7 +56,7 @@ async function login() {
     } catch (error) {
         loadingMsg.style.display = 'none';
         console.error('Login error:', error);
-        errorMsg.textContent = 'Cannot connect to server. Make sure backend is running on port 5000';
+        errorMsg.textContent = 'Cannot connect to server. Make sure backend is running.';
         errorMsg.style.display = 'block';
     }
 }
