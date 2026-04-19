@@ -139,6 +139,143 @@ def login():
     })
 
 # ============================================
+# GET LOW ATTENDANCE STUDENTS (ADMIN)
+# ============================================
+@app.route('/admin_low_attendance', methods=['GET'])
+@role_required(['Admin'])
+def get_low_attendance():
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT 
+            u.user_id,
+            u.full_name,
+            u.email,
+            c.course_code,
+            c.course_name,
+            COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) as present_days,
+            COUNT(DISTINCT ar.record_id) as total_sessions,
+            ROUND(
+                COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) * 100.0 /
+                NULLIF(COUNT(DISTINCT ar.record_id), 0), 2
+            ) as percentage
+        FROM attendance_records ar
+        JOIN users u ON ar.student_id = u.user_id
+        JOIN sections sec ON ar.section_id = sec.section_id
+        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+        JOIN courses c ON cs.course_id = c.course_id
+        WHERE u.role = 'Student'
+        GROUP BY u.user_id, u.full_name, u.email, c.course_code, c.course_name
+        HAVING percentage < 75
+        ORDER BY percentage ASC
+    """)
+    students = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "students": students})
+
+
+# ============================================
+# ISSUE FINE (ADMIN)
+# ============================================
+@app.route('/admin_issue_fine', methods=['POST'])
+@role_required(['Admin'])
+def issue_fine():
+    data = request.get_json()
+    student_id = data.get('student_id')
+    course_code = data.get('course_code')
+    course_name = data.get('course_name')
+    percentage = data.get('percentage')
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    # Check if fine already issued
+    cursor.execute("""
+        SELECT fine_id FROM fines 
+        WHERE student_id = %s AND course_code = %s AND status = 'Pending'
+    """, (student_id, course_code))
+    existing = cursor.fetchone()
+    
+    if existing:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Fine already issued for this course"}), 400
+    
+    # Insert fine
+    cursor.execute("""
+        INSERT INTO fines (student_id, course_code, course_name, attendance_percentage, fine_amount, status)
+        VALUES (%s, %s, %s, %s, 500.00, 'Pending')
+    """, (student_id, course_code, course_name, percentage))
+    conn.commit()
+    
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "message": "Fine issued successfully"})
+
+
+# ============================================
+# GET MY FINES (STUDENT)
+# ============================================
+@app.route('/my_fines', methods=['GET'])
+@role_required(['Student'])
+def get_my_fines():
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT fine_id, course_code, course_name, 
+               attendance_percentage, fine_amount, 
+               status, issued_date
+        FROM fines
+        WHERE student_id = %s
+        ORDER BY issued_date DESC
+    """, (session['user_id'],))
+    fines = cursor.fetchall()
+    
+    for fine in fines:
+        if fine['issued_date']:
+            fine['issued_date'] = fine['issued_date'].strftime('%Y-%m-%d')
+    
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "fines": fines})
+
+
+# ============================================
+# PAY FINE (STUDENT)
+# ============================================
+@app.route('/pay_fine', methods=['POST'])
+@role_required(['Student'])
+def pay_fine():
+    data = request.get_json()
+    fine_id = data.get('fine_id')
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE fines 
+        SET status = 'Paid', paid_date = NOW()
+        WHERE fine_id = %s AND student_id = %s
+    """, (fine_id, session['user_id']))
+    conn.commit()
+    
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "message": "Fine paid successfully"})
+
+# ============================================
 # LOGOUT
 # ============================================
 
