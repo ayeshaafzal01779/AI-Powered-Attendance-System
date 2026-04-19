@@ -8,6 +8,31 @@ import uuid
 import os
 from functools import wraps
 from database import get_db_connection
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Email Configuration
+GMAIL_USER = 'meerabgohar23@gmail.com'
+GMAIL_PASSWORD = 'ssyn zsqf wxnq ecdy'
+
+def send_email(to_email, subject, body):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = GMAIL_USER
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Email error: {e}")
+        return False
 
 # Flask app setup
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -271,10 +296,54 @@ def pay_fine():
     """, (fine_id, session['user_id']))
     conn.commit()
     
+    # ← YAHAN SE NAYA CODE ADD KARO
+    cursor2 = conn.cursor(dictionary=True)
+    cursor2.execute("""
+        SELECT u.email, u.full_name, f.course_name, f.fine_amount 
+        FROM fines f 
+        JOIN users u ON f.student_id = u.user_id 
+        WHERE f.fine_id = %s
+    """, (fine_id,))
+    fine_info = cursor2.fetchone()
+    cursor2.close()
+
+    if fine_info:
+        email_body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #27ae60; padding: 20px; text-align: center;">
+                <h2 style="color: white; margin: 0;">✅ Payment Successful!</h2>
+            </div>
+            <div style="padding: 30px; background: #f9f9f9;">
+                <p>Dear <strong>{fine_info['full_name']}</strong>,</p>
+                <p>Your fine payment has been successfully processed.</p>
+                <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+                    <tr style="background:#ecf0f1;">
+                        <td style="padding:10px; border:1px solid #ddd;"><strong>Course</strong></td>
+                        <td style="padding:10px; border:1px solid #ddd;">{fine_info['course_name']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px; border:1px solid #ddd;"><strong>Amount Paid</strong></td>
+                        <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
+                            <strong>Rs. {fine_info['fine_amount']}</strong>
+                        </td>
+                    </tr>
+                    <tr style="background:#ecf0f1;">
+                        <td style="padding:10px; border:1px solid #ddd;"><strong>Status</strong></td>
+                        <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
+                            <strong>PAID ✅</strong>
+                        </td>
+                    </tr>
+                </table>
+                <p style="color:#666;">Please improve your attendance to avoid future fines.</p>
+                <p>Regards,<br><strong>AI Attendance System</strong></p>
+            </div>
+        </div>
+        """
+        send_email(fine_info['email'], 'Fine Payment Confirmation - AI Attendance System', email_body)
+
     cursor.close()
     conn.close()
     return jsonify({"status": "success", "message": "Fine paid successfully"})
-
 # ============================================
 # LOGOUT
 # ============================================

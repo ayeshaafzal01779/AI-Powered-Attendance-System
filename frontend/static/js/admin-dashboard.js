@@ -93,29 +93,49 @@ async function loadLowAttendance() {
 }
 
 async function issueFine(studentId, courseCode, courseName, percentage) {
-  if (!confirm(`Rs. 500 fine issue karna hai ${courseCode} ke liye?`)) return;
+  Swal.fire({
+    title: "Issue Fine?",
+    html: `<b>${courseCode}</b> - Issue a fine of <b>Rs. 500</b> for low attendance?`,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#e74c3c",
+    cancelButtonColor: "#95a5a6",
+    confirmButtonText: "Yes, Issue!",
+    cancelButtonText: "Cancel",
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      const response = await apiCall("/admin_issue_fine", {
+        method: "POST",
+        body: JSON.stringify({
+          student_id: studentId,
+          course_code: courseCode,
+          course_name: courseName,
+          percentage: percentage,
+        }),
+      });
 
-  const response = await apiCall("/admin_issue_fine", {
-    method: "POST",
-    body: JSON.stringify({
-      student_id: studentId,
-      course_code: courseCode,
-      course_name: courseName,
-      percentage: percentage,
-    }),
+      if (!response) return;
+      const data = await response.json();
+
+      if (data.status === "success") {
+        Swal.fire({
+          title: "Fine Issued!",
+          text: "Fine successfully issue ho gayi!",
+          icon: "success",
+          confirmButtonColor: "#27ae60",
+        });
+        loadLowAttendance();
+      } else {
+        Swal.fire({
+          title: "Error!",
+          text: data.message || "Any Problem Happened!",
+          icon: "error",
+          confirmButtonColor: "#e74c3c",
+        });
+      }
+    }
   });
-
-  if (!response) return;
-  const data = await response.json();
-
-  if (data.status === "success") {
-    alert("Fine successfully issue ho gaya!");
-    loadLowAttendance();
-  } else {
-    alert(data.message || "Error issuing fine");
-  }
 }
-
 // ============================================
 // LOAD STATS
 // ============================================
