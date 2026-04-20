@@ -1,84 +1,12 @@
-// ============================================
-// ADMIN DASHBOARD - COMPLETE FIXED VERSION
-// ============================================
-
-const API_BASE_URL = null; // Set to "http://your-server:5000" when API ready
-const USE_DUMMY_DATA = true; // Change to false when API is ready
-
-// Get user from localStorage
-const user = JSON.parse(localStorage.getItem("user"));
-const userId = localStorage.getItem("userId");
-const userRole = localStorage.getItem("userRole");
-
-// Role check
-if (!user || !userId || userRole !== "Admin") {
-  alert("Access Denied. Admin only.");
-  window.location.href = "/";
-}
-
-// SweetAlert2 fallback
-function showAlert(title, message, type) {
-  if (typeof Swal !== "undefined" && Swal.fire) {
-    Swal.fire(title, message, type);
-  } else {
-    alert(`${title}: ${message}`);
-  }
-}
-
-// ============================================
-// API CALL FUNCTION
-// ============================================
-
-async function apiCall(url, options = {}) {
-  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
-  const defaultOptions = {
-    method: "GET",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-  };
-  const mergedOptions = { ...defaultOptions, ...options };
-
-  try {
-    const response = await fetch(fullUrl, mergedOptions);
-    if (response.status === 401 || response.status === 403) {
-      alert("Session expired. Please login again.");
-      localStorage.clear();
-      window.location.href = "/";
-      return null;
-    }
-    return response;
-  } catch (error) {
-    console.error("API call error:", error);
-    return null;
-  }
-}
+// ==================== CONFIGURATION ====================
+// API Base URL - JAB API READY HO TO SIRF YAHAN CHANGE KARNA
+// Abhi: null means dummy data use karo
+// Baad mein: "http://localhost:5000/api" likh do
+const API_BASE_URL = null; // ✅ API READY HO TO SIRF YAHAN CHANGE KARNA!
 
 // ==================== GLOBAL VARIABLES ====================
 let securityAlerts = [];
 let usersList = [];
-
-// ==================== API HELPER (DUMMY/REAL SWITCH) ====================
-async function apiRequest(endpoint, options = {}) {
-  if (USE_DUMMY_DATA === true) {
-    console.log("Using dummy data for:", endpoint);
-    return handleDummyRequest(endpoint, options);
-  }
-
-  if (!API_BASE_URL) {
-    return handleDummyRequest(endpoint, options);
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...options.headers },
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("API Error:", error);
-    return { success: false, error: error.message };
-  }
-}
 
 // ==================== DUMMY DATA (JAB TAK API NAHI HAI) ====================
 const DUMMY_ALERTS = [
@@ -142,6 +70,26 @@ const DUMMY_STUDENTS = [
     faceData: "notset",
   },
 ];
+
+// ==================== API HELPER (AUTOMATIC DUMMY/REAL SWITCH) ====================
+async function apiRequest(endpoint, options = {}) {
+  // AGAR API READY NAHI HAI TO DUMMY DATA RETURN KARO
+  if (API_BASE_URL === null) {
+    return handleDummyRequest(endpoint, options);
+  }
+
+  // API READY HAI TO REAL REQUEST BHEJO
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options.headers },
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("API Error:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 // Dummy requests handler (tab tak ke liye jab tak API nahi hai)
 function handleDummyRequest(endpoint, options) {
@@ -426,7 +374,8 @@ let todayPresentData = {
 
 // API se today's present data fetch karne ka function (FUTURE-PROOF)
 async function fetchTodayPresentData() {
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
+  // AGAR API READY HAI TO REAL DATA LEKAR AAYEGA
+  if (API_BASE_URL !== null) {
     try {
       const response = await fetch(`${API_BASE_URL}/attendance/today/present`, {
         headers: {
@@ -443,6 +392,8 @@ async function fetchTodayPresentData() {
       console.error("API Error - using dummy data:", error);
     }
   }
+
+  // AGAR API READY NAHI HAI TO DUMMY DATA USE KARO
   return todayPresentData;
 }
 
@@ -460,6 +411,7 @@ async function updateTodayPresentCard() {
   if (studentCountElement) {
     studentCountElement.textContent = `(${data.presentCount} / ${data.totalStudents} students)`;
 
+    // Agar color coding chahiye to:
     const percentage = data.percentage;
     if (percentage < 75) {
       percentageElement.classList.add("text-danger");
@@ -476,8 +428,10 @@ async function updateTodayPresentCard() {
 
 // Today's Present Card Click Karne Par Modal Show Hoga
 async function showTodayPresentList() {
+  // Pehle fresh data load karo
   const data = await fetchTodayPresentData();
 
+  // Modal ke elements update karo
   const dateElement = document.getElementById("presentDate");
   const totalCountElement = document.getElementById("totalPresentCount");
   const tableBody = document.getElementById("presentStudentsList");
@@ -490,10 +444,12 @@ async function showTodayPresentList() {
     totalCountElement.textContent = `${data.presentCount} / ${data.totalStudents}`;
   }
 
+  // Table mein students ki list banao
   if (tableBody) {
     if (data.presentStudents && data.presentStudents.length > 0) {
       let rows = "";
       data.presentStudents.forEach((student) => {
+        // Mode ke according badge color
         let modeBadge = "";
         switch (student.mode) {
           case "Face Recognition":
@@ -531,13 +487,14 @@ async function showTodayPresentList() {
     }
   }
 
+  // Modal show karo
   const modal = new bootstrap.Modal(
     document.getElementById("todayPresentModal"),
   );
   modal.show();
 }
 
-// Export present list as CSV
+// Export present list as CSV (future-proof)
 function exportPresentList() {
   const data = todayPresentData;
   if (!data.presentStudents || data.presentStudents.length === 0) {
@@ -545,11 +502,13 @@ function exportPresentList() {
     return;
   }
 
+  // CSV format mein data banao
   let csvContent = "Roll No,Student Name,Department,Time,Mode\n";
   data.presentStudents.forEach((student) => {
     csvContent += `${student.rollNo},${student.name},${student.department},${student.time},${student.mode}\n`;
   });
 
+  // CSV file download karo
   const blob = new Blob([csvContent], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -563,16 +522,18 @@ function exportPresentList() {
   alert("✅ Present list exported successfully!");
 }
 
+// Real-time update ke liye (every 5 minutes agar API ready ho to)
 function startAutoRefresh() {
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
+  if (API_BASE_URL !== null) {
     setInterval(() => {
       updateTodayPresentCard();
-    }, 300000);
+    }, 300000); // 5 minutes = 300,000 milliseconds
   }
 }
 
 // ==================== TEACHERS LIST FUNCTIONS ====================
 
+// DUMMY DATA FOR TEACHERS (JAB TAK API NAHI HAI)
 const DUMMY_TEACHERS = [
   {
     id: "T-2024-01",
@@ -660,10 +621,13 @@ const DUMMY_TEACHERS = [
   },
 ];
 
+// Teachers data store karne ke liye
 let allTeachers = [];
 
+// Dashboard stats update karne ke liye
 async function fetchTeachersData() {
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
+  // AGAR API READY HAI TO REAL DATA LEKAR AAYEGA
+  if (API_BASE_URL !== null) {
     try {
       const response = await fetch(`${API_BASE_URL}/teachers`, {
         headers: {
@@ -681,17 +645,22 @@ async function fetchTeachersData() {
     }
   }
 
+  // AGAR API READY NAHI HAI TO DUMMY DATA USE KARO
   allTeachers = DUMMY_TEACHERS;
   updateTeachersCard();
   return allTeachers;
 }
 
+// Dashboard card update karne ka function
 async function updateTeachersCard() {
   const data = await fetchTeachersData();
   const countElement = document.getElementById("totalTeachersCount");
   const subtextElement = document.getElementById("totalTeachersSubtext");
 
   if (countElement) {
+    const activeCount = data.filter(
+      (teacher) => teacher.status === "active",
+    ).length;
     countElement.textContent = data.length;
   }
   if (subtextElement) {
@@ -702,9 +671,12 @@ async function updateTeachersCard() {
   }
 }
 
+// All Teachers List Modal Show Karne Ka Function
 async function showAllTeachersList() {
+  // Fresh data load karo
   await fetchTeachersData();
 
+  // Modal elements update karo
   const totalElement = document.getElementById("modalTotalTeachers");
   const activeTodayElement = document.getElementById("modalActiveToday");
   const departmentsElement = document.getElementById("modalDepartmentsCount");
@@ -730,16 +702,20 @@ async function showAllTeachersList() {
     coursesElement.textContent = totalCourses;
   }
 
+  // Teachers table render karo
   renderTeachersTable(allTeachers);
 
+  // Modal show karo
   const modal = new bootstrap.Modal(
     document.getElementById("teachersListModal"),
   );
   modal.show();
 
+  // Search aur filter event listeners laga do
   setupTeacherFilters();
 }
 
+// Teachers table render karne ka function
 function renderTeachersTable(teachers) {
   const tableBody = document.getElementById("allTeachersList");
 
@@ -758,6 +734,7 @@ function renderTeachersTable(teachers) {
 
   let rows = "";
   teachers.forEach((teacher) => {
+    // Status badge ke according color
     let statusBadge = "";
     switch (teacher.status) {
       case "active":
@@ -773,6 +750,7 @@ function renderTeachersTable(teachers) {
         statusBadge = '<span class="badge bg-info">Unknown</span>';
     }
 
+    // Courses badges
     let coursesBadges = "";
     teacher.courses.forEach((course) => {
       coursesBadges += `<span class="badge bg-info me-1 mb-1">${course}</span>`;
@@ -813,6 +791,7 @@ function renderTeachersTable(teachers) {
   tableBody.innerHTML = rows;
 }
 
+// Search aur filter setup karne ka function
 function setupTeacherFilters() {
   const searchInput = document.getElementById("teacherSearchInput");
   const departmentFilter = document.getElementById("departmentFilter");
@@ -825,6 +804,7 @@ function setupTeacherFilters() {
 
     let filteredTeachers = [...allTeachers];
 
+    // Search filter
     if (searchTerm) {
       filteredTeachers = filteredTeachers.filter(
         (teacher) =>
@@ -835,12 +815,14 @@ function setupTeacherFilters() {
       );
     }
 
+    // Department filter
     if (department !== "all") {
       filteredTeachers = filteredTeachers.filter(
         (teacher) => teacher.department === department,
       );
     }
 
+    // Status filter
     if (status !== "all") {
       filteredTeachers = filteredTeachers.filter(
         (teacher) => teacher.status === status,
@@ -856,6 +838,7 @@ function setupTeacherFilters() {
   if (statusFilter) statusFilter.addEventListener("change", filterFunction);
 }
 
+// Teacher details view karne ka function
 function viewTeacherDetails(teacherId) {
   const teacher = allTeachers.find((t) => t.id === teacherId);
   if (teacher) {
@@ -867,20 +850,23 @@ function viewTeacherDetails(teacherId) {
   }
 }
 
+// Teacher edit karne ka function
 function editTeacherDetails(teacherId) {
   const teacher = allTeachers.find((t) => t.id === teacherId);
   if (teacher) {
+    // Yahan par edit modal open hoga (baad mein implement karna)
     alert(
       `✏️ Edit Teacher: ${teacher.name}\n\n(Edit functionality will be added later)`,
     );
   }
 }
 
+// Teacher delete karne ka function
 async function deleteTeacherFromList(teacherId) {
   if (confirm("⚠️ Are you sure you want to delete this teacher record?")) {
     const teacher = allTeachers.find((t) => t.id === teacherId);
 
-    if (!USE_DUMMY_DATA && API_BASE_URL) {
+    if (API_BASE_URL !== null) {
       try {
         const response = await fetch(`${API_BASE_URL}/teachers/${teacherId}`, {
           method: "DELETE",
@@ -900,6 +886,7 @@ async function deleteTeacherFromList(teacherId) {
         alert("❌ Failed to delete teacher");
       }
     } else {
+      // Dummy mode mein local se delete karo
       allTeachers = allTeachers.filter((t) => t.id !== teacherId);
       updateTeachersCard();
       renderTeachersTable(allTeachers);
@@ -908,18 +895,21 @@ async function deleteTeacherFromList(teacherId) {
   }
 }
 
+// Export teachers list to Excel/CSV
 function exportTeachersList() {
   if (allTeachers.length === 0) {
     alert("No data to export!");
     return;
   }
 
+  // CSV format mein data banao
   let csvContent =
     "Employee ID,Teacher Name,Department,Designation,Assigned Courses,Status,Email,Phone\n";
   allTeachers.forEach((teacher) => {
     csvContent += `"${teacher.id}","${teacher.name}","${teacher.department}","${teacher.designation}","${teacher.courses.join("; ")}","${teacher.status}","${teacher.email || ""}","${teacher.phone || ""}"\n`;
   });
 
+  // CSV file download karo
   const blob = new Blob([csvContent], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -933,7 +923,9 @@ function exportTeachersList() {
   alert("✅ Teachers list exported successfully!");
 }
 
+// Print teachers list
 function printTeachersList() {
+  const printContent = document.getElementById("allTeachersList").innerHTML;
   const printWindow = window.open("", "_blank");
   printWindow.document.write(`
         <html>
@@ -962,8 +954,9 @@ function printTeachersList() {
   printWindow.document.close();
 }
 
-// ==================== TOTAL STUDENTS LIST FUNCTIONS ====================
+// ==================== Total STUDENTS LIST FUNCTIONS ====================
 
+// DUMMY DATA FOR STUDENTS (JAB TAK API NAHI HAI)
 const DUMMY_STUDENTS_FULL = [
   {
     rollNo: "BIT22022",
@@ -1097,11 +1090,14 @@ const DUMMY_STUDENTS_FULL = [
   },
 ];
 
+// Students data store karne ke liye
 let allStudents = [];
 let selectedStudentRollNos = [];
 
+// Dashboard stats update karne ke liye
 async function fetchStudentsData() {
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
+  // AGAR API READY HAI TO REAL DATA LEKAR AAYEGA
+  if (API_BASE_URL !== null) {
     try {
       const response = await fetch(`${API_BASE_URL}/students`, {
         headers: {
@@ -1119,17 +1115,20 @@ async function fetchStudentsData() {
     }
   }
 
+  // AGAR API READY NAHI HAI TO DUMMY DATA USE KARO
   allStudents = DUMMY_STUDENTS_FULL;
   updateStudentsCard();
   return allStudents;
 }
 
+// Dashboard card update karne ka function
 async function updateStudentsCard() {
   const data = await fetchStudentsData();
   const countElement = document.getElementById("totalStudentsCount");
   const subtextElement = document.getElementById("totalStudentsSubtext");
 
   if (countElement) {
+    // Format number with commas (e.g., 1,482)
     countElement.textContent = data.length.toLocaleString();
   }
   if (subtextElement) {
@@ -1138,9 +1137,12 @@ async function updateStudentsCard() {
   }
 }
 
+// All Students List Modal Show Karne Ka Function
 async function showAllStudentsList() {
+  // Fresh data load karo
   await fetchStudentsData();
 
+  // Modal elements update karo
   const totalElement = document.getElementById("modalTotalStudents");
   const presentTodayElement = document.getElementById("modalPresentToday");
   const departmentsElement = document.getElementById("modalStudentDepts");
@@ -1149,6 +1151,7 @@ async function showAllStudentsList() {
   if (totalElement) totalElement.textContent = allStudents.length;
 
   if (presentTodayElement) {
+    // Present today ka data pehle se existing todayPresentData se le sakte hain
     const presentCount =
       todayPresentData?.presentCount || Math.floor(allStudents.length * 0.75);
     presentTodayElement.textContent = presentCount;
@@ -1166,20 +1169,25 @@ async function showAllStudentsList() {
     faceRegisteredElement.textContent = registered;
   }
 
+  // Students table render karo
   renderStudentsTable(allStudents);
 
+  // Modal show karo
   const modal = new bootstrap.Modal(
     document.getElementById("studentsListModal"),
   );
   modal.show();
 
+  // Search aur filter event listeners laga do
   setupStudentFilters();
 
+  // Select All checkbox reset karo
   const selectAllCheckbox = document.getElementById("selectAllStudents");
   if (selectAllCheckbox) selectAllCheckbox.checked = false;
   selectedStudentRollNos = [];
 }
 
+// Students table render karne ka function
 function renderStudentsTable(students) {
   const tableBody = document.getElementById("allStudentsList");
 
@@ -1198,11 +1206,13 @@ function renderStudentsTable(students) {
 
   let rows = "";
   students.forEach((student) => {
+    // Face status badge
     const faceBadge =
       student.faceStatus === "registered"
         ? '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Registered</span>'
         : '<span class="badge bg-warning"><i class="fas fa-exclamation-triangle me-1"></i>Not Set</span>';
 
+    // Attendance percentage color coding
     let attendanceColor = "";
     let attendanceIcon = "";
     if (student.attendance < 75) {
@@ -1254,6 +1264,7 @@ function renderStudentsTable(students) {
   tableBody.innerHTML = rows;
 }
 
+// Search aur filter setup karne ka function
 function setupStudentFilters() {
   const searchInput = document.getElementById("studentSearchInput");
   const departmentFilter = document.getElementById("studentDepartmentFilter");
@@ -1268,6 +1279,7 @@ function setupStudentFilters() {
 
     let filteredStudents = [...allStudents];
 
+    // Search filter
     if (searchTerm) {
       filteredStudents = filteredStudents.filter(
         (student) =>
@@ -1277,18 +1289,21 @@ function setupStudentFilters() {
       );
     }
 
+    // Department filter
     if (department !== "all") {
       filteredStudents = filteredStudents.filter(
         (student) => student.department === department,
       );
     }
 
+    // Semester filter
     if (semester !== "all") {
       filteredStudents = filteredStudents.filter(
         (student) => student.semester === semester,
       );
     }
 
+    // Face status filter
     if (faceStatus !== "all") {
       filteredStudents = filteredStudents.filter(
         (student) => student.faceStatus === faceStatus,
@@ -1306,6 +1321,7 @@ function setupStudentFilters() {
     faceStatusFilter.addEventListener("change", filterFunction);
 }
 
+// Student selection toggle
 function toggleStudentSelection(rollNo) {
   const index = selectedStudentRollNos.indexOf(rollNo);
   if (index === -1) {
@@ -1314,6 +1330,7 @@ function toggleStudentSelection(rollNo) {
     selectedStudentRollNos.splice(index, 1);
   }
 
+  // Update select all checkbox
   const selectAllCheckbox = document.getElementById("selectAllStudents");
   const allCheckboxes = document.querySelectorAll(".studentCheckbox");
   if (selectAllCheckbox) {
@@ -1323,6 +1340,7 @@ function toggleStudentSelection(rollNo) {
   }
 }
 
+// Select all students
 function toggleSelectAll() {
   const selectAllCheckbox = document.getElementById("selectAllStudents");
   const allCheckboxes = document.querySelectorAll(".studentCheckbox");
@@ -1341,6 +1359,7 @@ function toggleSelectAll() {
   }
 }
 
+// Delete selected students
 async function deleteSelectedStudents() {
   if (selectedStudentRollNos.length === 0) {
     alert("Please select at least one student to delete!");
@@ -1352,7 +1371,7 @@ async function deleteSelectedStudents() {
       `⚠️ Are you sure you want to delete ${selectedStudentRollNos.length} student(s)? This action cannot be undone.`,
     )
   ) {
-    if (!USE_DUMMY_DATA && API_BASE_URL) {
+    if (API_BASE_URL !== null) {
       try {
         const response = await fetch(`${API_BASE_URL}/students/bulk-delete`, {
           method: "POST",
@@ -1369,16 +1388,17 @@ async function deleteSelectedStudents() {
           );
           updateStudentsCard();
           renderStudentsTable(allStudents);
+          selectedStudentRollNos = [];
           alert(
             `✅ ${selectedStudentRollNos.length} student(s) deleted successfully!`,
           );
-          selectedStudentRollNos = [];
         }
       } catch (error) {
         console.error("Delete error:", error);
         alert("❌ Failed to delete students");
       }
     } else {
+      // Dummy mode mein local se delete karo
       allStudents = allStudents.filter(
         (s) => !selectedStudentRollNos.includes(s.rollNo),
       );
@@ -1392,6 +1412,7 @@ async function deleteSelectedStudents() {
   }
 }
 
+// Student details view karne ka function
 function viewStudentDetails(rollNo) {
   const student = allStudents.find((s) => s.rollNo === rollNo);
   if (student) {
@@ -1403,20 +1424,23 @@ function viewStudentDetails(rollNo) {
   }
 }
 
+// Student edit karne ka function
 function editStudentDetails(rollNo) {
   const student = allStudents.find((s) => s.rollNo === rollNo);
   if (student) {
+    // Yahan par edit modal open hoga
     alert(
       `✏️ Edit Student: ${student.name}\n\n(Edit functionality will be added later)`,
     );
   }
 }
 
+// Student delete karne ka function
 async function deleteStudentFromList(rollNo) {
   if (confirm("⚠️ Are you sure you want to delete this student record?")) {
     const student = allStudents.find((s) => s.rollNo === rollNo);
 
-    if (!USE_DUMMY_DATA && API_BASE_URL) {
+    if (API_BASE_URL !== null) {
       try {
         const response = await fetch(`${API_BASE_URL}/students/${rollNo}`, {
           method: "DELETE",
@@ -1436,6 +1460,7 @@ async function deleteStudentFromList(rollNo) {
         alert("❌ Failed to delete student");
       }
     } else {
+      // Dummy mode mein local se delete karo
       allStudents = allStudents.filter((s) => s.rollNo !== rollNo);
       updateStudentsCard();
       renderStudentsTable(allStudents);
@@ -1444,11 +1469,13 @@ async function deleteStudentFromList(rollNo) {
   }
 }
 
+// Export students list to Excel/CSV
 function exportStudentsList() {
   const currentRows = document.querySelectorAll("#allStudentsList tr");
   let studentsToExport = [];
 
   if (currentRows.length > 0 && currentRows[0].cells.length > 1) {
+    // Filtered view se export karo
     currentRows.forEach((row) => {
       if (row.cells[0] && row.cells[0].textContent !== "No students found") {
         studentsToExport.push({
@@ -1472,12 +1499,14 @@ function exportStudentsList() {
     return;
   }
 
+  // CSV format mein data banao
   let csvContent =
     "Roll No,Student Name,Department,Semester,Face Status,Attendance (%)\n";
   studentsToExport.forEach((student) => {
     csvContent += `"${student.rollNo}","${student.name}","${student.department}","${student.semester}","${student.faceStatus}","${student.attendance}"\n`;
   });
 
+  // CSV file download karo
   const blob = new Blob([csvContent], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1491,6 +1520,7 @@ function exportStudentsList() {
   alert("✅ Students list exported successfully!");
 }
 
+// Print students list
 function printStudentsList() {
   const printWindow = window.open("", "_blank");
   printWindow.document.write(`
@@ -1521,6 +1551,7 @@ function printStudentsList() {
   printWindow.document.close();
 }
 
+// Send bulk notification
 function sendBulkNotification() {
   if (selectedStudentRollNos.length === 0) {
     alert("Please select at least one student to send notification!");
@@ -1536,250 +1567,8 @@ function sendBulkNotification() {
     alert(
       `📧 Notification sent to ${selectedStudentRollNos.length} student(s):\n\n"${message}"`,
     );
+    // API call yahan hogi baad mein
   }
-}
-
-// ==================== LOW ATTENDANCE & FINES FUNCTIONS ====================
-
-const DUMMY_LOW_ATTENDANCE = [
-  {
-    name: "Ali Raza",
-    email: "ali@triai.edu",
-    course: "IT-301",
-    attendance: 65,
-    fine: 5000,
-  },
-  {
-    name: "Hamza Ahmed",
-    email: "hamza@triai.edu",
-    course: "IT-302",
-    attendance: 45,
-    fine: 10000,
-  },
-  {
-    name: "Usman Chaudhry",
-    email: "usman@triai.edu",
-    course: "SE-201",
-    attendance: 71,
-    fine: 3000,
-  },
-  {
-    name: "Sana Tariq",
-    email: "sana@triai.edu",
-    course: "DS-101",
-    attendance: 62,
-    fine: 5000,
-  },
-];
-
-async function loadLowAttendance() {
-  const tbody = document.getElementById("lowAttendanceBody");
-  if (!tbody) return;
-
-  tbody.innerHTML =
-    '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin me-2"></i>Loading low attendance data...</td></tr>';
-
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/attendance/low-attendance`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        },
-      );
-      const result = await response.json();
-      if (result.success && result.data.length > 0) {
-        renderLowAttendanceTable(result.data);
-        return;
-      }
-    } catch (error) {
-      console.error("API Error - using dummy data:", error);
-    }
-  }
-
-  renderLowAttendanceTable(DUMMY_LOW_ATTENDANCE);
-}
-
-function renderLowAttendanceTable(students) {
-  const tbody = document.getElementById("lowAttendanceBody");
-  if (!tbody) return;
-
-  if (students.length === 0) {
-    tbody.innerHTML =
-      '<tr><td colspan="6" class="text-center text-success"><i class="fas fa-check-circle me-2"></i>No students with low attendance! All good!</td></tr>';
-    return;
-  }
-
-  let rows = "";
-  students.forEach((student) => {
-    let fineColor = "";
-    if (student.fine >= 10000) fineColor = "text-danger fw-bold";
-    else if (student.fine >= 5000) fineColor = "text-warning fw-bold";
-    else fineColor = "text-info";
-
-    rows += `
-      <tr>
-        <td><strong>${student.name}</strong></td>
-        <td>${student.email}</td>
-        <td>${student.course}</td>
-        <td class="text-danger fw-bold">${student.attendance}%</td>
-        <td class="${fineColor}">Rs. ${student.fine.toLocaleString()}</td>
-        <td>
-          <button class="btn btn-sm btn-warning" onclick="sendFineNotification('${student.email}')">
-            <i class="fas fa-bell me-1"></i>Notify
-          </button>
-        </td>
-      </tr>
-    `;
-  });
-  tbody.innerHTML = rows;
-}
-
-function sendFineNotification(email) {
-  if (confirm(`Send fine notification to ${email}?`)) {
-    alert(`✅ Notification sent to ${email}`);
-  }
-}
-
-// ==================== CHART FUNCTIONS ====================
-
-let attendanceChart = null;
-
-const DUMMY_CHART_DATA = {
-  labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-  datasets: [
-    {
-      label: "Present Students",
-      data: [820, 950, 880, 1100, 990, 750],
-      borderColor: "#3498db",
-      backgroundColor: "rgba(52, 152, 219, 0.1)",
-      fill: true,
-      tension: 0.4,
-    },
-  ],
-};
-
-async function fetchChartData() {
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/chart-data`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-      });
-      const result = await response.json();
-      if (result.success) {
-        return result.data;
-      }
-    } catch (error) {
-      console.error("API Error - using dummy data:", error);
-    }
-  }
-  return DUMMY_CHART_DATA;
-}
-
-async function initChart() {
-  const chartData = await fetchChartData();
-  const ctx = document.getElementById("attendanceAreaChart");
-
-  if (!ctx) return;
-
-  if (attendanceChart) {
-    attendanceChart.destroy();
-  }
-
-  attendanceChart = new Chart(ctx.getContext("2d"), {
-    type: "line",
-    data: chartData,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: function (context) {
-              return `Present Students: ${context.raw}`;
-            },
-          },
-        },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Number of Students",
-          },
-        },
-      },
-    },
-  });
-}
-
-function startChartAutoRefresh() {
-  if (!USE_DUMMY_DATA && API_BASE_URL) {
-    setInterval(() => {
-      initChart();
-    }, 300000);
-  }
-}
-
-// ==================== NAVIGATION FUNCTIONS ====================
-
-function showSection(sectionId, event) {
-  document
-    .querySelectorAll(".content-section")
-    .forEach((section) => section.classList.remove("active"));
-  document
-    .querySelectorAll(".nav-link")
-    .forEach((link) => link.classList.remove("active"));
-
-  const selectedSection = document.getElementById(sectionId);
-  if (selectedSection) selectedSection.classList.add("active");
-
-  if (event && event.currentTarget) event.currentTarget.classList.add("active");
-}
-
-function logout() {
-  if (confirm("Are you sure you want to logout?")) {
-    localStorage.clear();
-    alert("Logged out successfully!");
-    window.location.href = "/";
-  }
-}
-
-// ==================== TABLE ACTION FUNCTIONS ====================
-
-function deleteRow(button) {
-  if (confirm("⚠️ Are you sure you want to delete this record?")) {
-    const row = button.closest("tr");
-    if (row) row.remove();
-  }
-}
-
-function deleteTeacherRow(button) {
-  if (confirm("⚠️ Are you sure you want to delete this teacher?")) {
-    const row = button.closest("tr");
-    if (row) row.remove();
-  }
-}
-
-function viewUser(rollNo) {
-  alert(`👤 Viewing student: ${rollNo}`);
-}
-
-function editUser(rollNo) {
-  alert(`✏️ Editing student: ${rollNo}`);
-}
-
-function viewTeacher(name) {
-  alert(`👨‍🏫 Viewing teacher: ${name}`);
-}
-
-function editTeacher(name) {
-  alert(`✏️ Editing teacher: ${name}`);
 }
 
 // ==================== DOM CONTENT LOADED ====================
@@ -1793,18 +1582,119 @@ document.addEventListener("DOMContentLoaded", function () {
     return new bootstrap.Tooltip(el);
   });
 
-  // Initialize Chart
+  // ==================== FUTURE-PROOF CHART CODE ====================
+
+  // Chart instance store karne ke liye
+  let attendanceChart = null;
+
+  // API Base URL - JAB API READY HO TO SIRF YAHAN CHANGE KARNA
+  const CHART_API_BASE_URL = null; // ✅ API READY HO TO URL DALDO
+
+  // Dummy chart data (jab tak API nahi hai)
+  const DUMMY_CHART_DATA = {
+    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    datasets: [
+      {
+        label: "Present Students",
+        data: [820, 950, 880, 1100, 990, 750],
+        borderColor: "#3498db",
+        backgroundColor: "rgba(52, 152, 219, 0.1)",
+        fill: true,
+        tension: 0.4,
+      },
+    ],
+  };
+
+  // API se chart data fetch karne ka function
+  async function fetchChartData() {
+    // AGAR API READY HAI TO REAL DATA LEKAR AAYEGA
+    if (CHART_API_BASE_URL !== null) {
+      try {
+        const response = await fetch(
+          `${CHART_API_BASE_URL}/dashboard/chart-data`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            },
+          },
+        );
+        const result = await response.json();
+        if (result.success) {
+          return result.data;
+        }
+      } catch (error) {
+        console.error("API Error - using dummy data:", error);
+      }
+    }
+
+    // AGAR API READY NAHI HAI TO DUMMY DATA USE KARO
+    return DUMMY_CHART_DATA;
+  }
+
+  // Chart initialize/update karne ka function
+  async function initChart() {
+    const chartData = await fetchChartData();
+    const ctx = document.getElementById("attendanceAreaChart");
+
+    if (!ctx) return;
+
+    // Agar chart already exist karta hai to destroy karo
+    if (attendanceChart) {
+      attendanceChart.destroy();
+    }
+
+    // Naya chart create karo
+    attendanceChart = new Chart(ctx.getContext("2d"), {
+      type: "line",
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return `Present Students: ${context.raw}`;
+              },
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Number of Students",
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Chart auto-refresh (har 5 minutes mein agar API ready ho to)
+  function startChartAutoRefresh() {
+    if (CHART_API_BASE_URL !== null) {
+      setInterval(() => {
+        initChart(); // Chart refresh ho jayega
+      }, 300000); // 5 minutes
+    }
+  }
+
+  // Chart initialize karo
   initChart();
   startChartAutoRefresh();
 
-  // Load students data
+  // Load students data (card update ke liye)
   fetchStudentsData();
-  // Load teachers data
+  // Load teachers data (card update ke liye)
   fetchTeachersData();
+
   // Load today's present data
   updateTodayPresentCard();
-  // Auto refresh start karo
+  // Auto refresh start karo (API ready hone par kaam karega)
   startAutoRefresh();
+
   // Load initial alerts
   loadAlertsFromAPI();
 
@@ -1818,8 +1708,6 @@ document.addEventListener("DOMContentLoaded", function () {
       const role = document.getElementById("role")?.value;
       const department = document.getElementById("department")?.value;
       const semester = document.getElementById("semester")?.value;
-      const email = document.getElementById("newEmail")?.value;
-      const password = document.getElementById("newPassword")?.value;
 
       if (!fullName || !rollNo) {
         alert("❌ Please enter Full Name and ID/Roll No!");
@@ -1828,70 +1716,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const result = await apiRequest("/users/register", {
         method: "POST",
-        body: JSON.stringify({
-          fullName,
-          rollNo,
-          role,
-          department,
-          semester,
-          email,
-          password,
-        }),
+        body: JSON.stringify({ fullName, rollNo, role, department, semester }),
       });
 
       if (result.success) {
         if (role === "Student") {
-          // Add to students list
-          allStudents.push({
-            rollNo: rollNo,
-            name: fullName,
-            department: department || "IT",
-            semester: semester || "7th",
-            faceStatus: "notset",
-            attendance: 0,
-            email: email || "",
-            phone: "",
-          });
-          updateStudentsCard();
-
-          // Also update table if modal is open
-          const modal = bootstrap.Modal.getInstance(
-            document.getElementById("studentsListModal"),
-          );
-          if (
-            modal &&
-            document
-              .getElementById("studentsListModal")
-              .classList.contains("show")
-          ) {
-            renderStudentsTable(allStudents);
-          }
-        } else if (role === "Teacher") {
-          allTeachers.push({
-            id: rollNo,
-            name: fullName,
-            department: department || "IT",
-            designation: "Lecturer",
-            courses: [],
-            status: "active",
-            email: email || "",
-            phone: "",
-            joiningDate: new Date().toISOString().slice(0, 10),
-            qualification: "Not specified",
-          });
-          updateTeachersCard();
-
-          const modal = bootstrap.Modal.getInstance(
-            document.getElementById("teachersListModal"),
-          );
-          if (
-            modal &&
-            document
-              .getElementById("teachersListModal")
-              .classList.contains("show")
-          ) {
-            renderTeachersTable(allTeachers);
-          }
+          const tbody = document.querySelector("#students tbody");
+          const newRow = document.createElement("tr");
+          newRow.innerHTML = `
+                        <td>${rollNo}</td><td>${fullName}</td><td>${department || "IT"}</td>
+                        <td>${semester || "7th"}</td><td><span class="badge bg-warning">Not Set</span></td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-info" onclick="viewUser('${rollNo}')"><i class="fas fa-eye"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editUser('${rollNo}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteRow(this)"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+          tbody.appendChild(newRow);
         }
         alert(`✅ ${role} ${fullName} added successfully!`);
         const modal = bootstrap.Modal.getInstance(
@@ -1905,7 +1746,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // ========== SEARCH FUNCTIONALITY FOR MAIN STUDENTS TABLE ==========
+  // ========== SEARCH FUNCTIONALITY ==========
   const searchInput = document.querySelector('#students input[type="text"]');
   function filterStudents() {
     const searchTerm = searchInput?.value.toLowerCase() || "";
@@ -1932,15 +1773,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // ========== ADD STUDENT BUTTON IN DASHBOARD ==========
-  const addStudentBtn = document.querySelector(".add-user-btn");
-  if (addStudentBtn) {
-    addStudentBtn.addEventListener("click", function () {
-      const roleSelect = document.getElementById("role");
-      if (roleSelect) roleSelect.value = "Student";
-    });
-  }
-
   // ========== REPORT GENERATION ==========
   const downloadBtn = document.querySelector("#reports .btn-danger");
   if (downloadBtn) {
@@ -1958,4 +1790,55 @@ document.addEventListener("DOMContentLoaded", function () {
       alert(`📄 Report generated for ${startDate} to ${endDate}`);
     });
   }
+
+  // ========== LOGOUT ==========
+  const logoutBtn = document.querySelector(".nav-link.text-danger");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (confirm("Are you sure you want to logout?")) {
+        alert("Logged out successfully!");
+      }
+    });
+  }
 });
+
+// ==================== GLOBAL FUNCTIONS ====================
+function deleteRow(button) {
+  if (confirm("⚠️ Are you sure you want to delete this record?")) {
+    const row = button.closest("tr");
+    if (row) row.remove();
+  }
+}
+
+function deleteTeacherRow(button) {
+  if (confirm("⚠️ Are you sure you want to delete this teacher?")) {
+    const row = button.closest("tr");
+    if (row) row.remove();
+  }
+}
+
+function viewUser(rollNo) {
+  alert(`👤 Viewing student: ${rollNo}`);
+}
+function editUser(rollNo) {
+  alert(`✏️ Editing student: ${rollNo}`);
+}
+function viewTeacher(name) {
+  alert(`👨‍🏫 Viewing teacher: ${name}`);
+}
+function editTeacher(name) {
+  alert(`✏️ Editing teacher: ${name}`);
+}
+
+function showSection(sectionId, event) {
+  document
+    .querySelectorAll(".content-section")
+    .forEach((section) => section.classList.remove("active"));
+  document
+    .querySelectorAll(".nav-link")
+    .forEach((link) => link.classList.remove("active"));
+  const selectedSection = document.getElementById(sectionId);
+  if (selectedSection) selectedSection.classList.add("active");
+  if (event && event.currentTarget) event.currentTarget.classList.add("active");
+}
