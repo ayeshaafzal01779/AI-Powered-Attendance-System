@@ -10,15 +10,14 @@
     />
     <link
       rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
-    <link rel="stylesheet" href="css/admin-dashboard.css" />
+    <link rel="stylesheet" href="static/css/admin-dashboard.css" />
   </head>
   <body>
     <div class="sidebar shadow">
       <div class="sidebar-header">
-        <h4 class="mb-0 text-white">AI- Powered Attendance System</h4>
-        <!-- <small class="text-muted">PUGC - SDS Prototype</small> -->
+        <h4 class="mb-0 text-white">AI-Powered Attendance System</h4>
       </div>
       <ul class="nav flex-column mt-4">
         <li class="nav-item">
@@ -37,13 +36,21 @@
           >
         </li>
         <li class="nav-item">
+          <a class="nav-link" onclick="showSection('fines')">
+            <i class="fas fa-exclamation-triangle me-2"></i> Low Attendance &
+            Fines
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link" onclick="showSection('reports')"
             ><i class="fas fa-chart-bar me-2"></i> Reports</a
           >
         </li>
-        <a href="#" class="nav-link text-danger mt-5" onclick="logout()">
-          <i class="fas fa-power-off me-2"></i> Logout
-        </a>
+        <li class="nav-item">
+          <a class="nav-link text-danger" onclick="logout()"
+            ><i class="fas fa-power-off me-2"></i> Logout</a
+          >
+        </li>
       </ul>
     </div>
 
@@ -56,59 +63,33 @@
             data-bs-toggle="modal"
             data-bs-target="#addUserModal"
           >
-            <i class="fas fa-plus-circle me-2"></i> Add Student
+            <i class="fas fa-plus-circle me-2"></i> Add User
           </button>
         </div>
 
         <div class="row g-3 mb-4">
           <div class="col-md-3">
-            <div
-              class="card stat-card p-3"
-              style="cursor: pointer"
-              onclick="showAllStudentsList()"
-            >
+            <div class="card stat-card p-3">
               <h6>Total Students</h6>
-              <h2 id="totalStudentsCount">1,482</h2>
-              <small class="text-muted" id="totalStudentsSubtext"
-                >(Registered students)</small
-              >
+              <h2 id="totalStudents">--</h2>
             </div>
           </div>
           <div class="col-md-3">
-            <div
-              class="card stat-card p-3"
-              style="border-left-color: #3498db; cursor: pointer"
-              onclick="showAllTeachersList()"
-            >
+            <div class="card stat-card p-3" style="border-left-color: #3498db">
               <h6>Total Teachers</h6>
-              <h2 id="totalTeachersCount">54</h2>
-              <small class="text-muted" id="totalTeachersSubtext"
-                >(Active faculty members)</small
-              >
+              <h2 id="totalTeachers">--</h2>
             </div>
           </div>
           <div class="col-md-3">
-            <div
-              class="card stat-card p-3"
-              style="border-left-color: #f1c40f; cursor: pointer"
-              onclick="showTodayPresentList()"
-            >
-              <h6>Today's Present</h6>
-              <h2 id="todayPresentCount">94.2%</h2>
-              <small class="text-muted" id="todayPresentStudentCount"
-                >(0 students)</small
-              >
+            <div class="card stat-card p-3" style="border-left-color: #f1c40f">
+              <h6>Total Courses</h6>
+              <h2 id="totalCourses">--</h2>
             </div>
           </div>
-
           <div class="col-md-3">
-            <div
-              class="card stat-card p-3"
-              style="border-left-color: #e74c3c; cursor: pointer"
-              onclick="showSecurityAlerts()"
-            >
-              <h6>Security Alerts</h6>
-              <h2 class="text-danger" id="alertCount">03</h2>
+            <div class="card stat-card p-3" style="border-left-color: #e74c3c">
+              <h6>Total Sessions</h6>
+              <h2 id="totalSessions">--</h2>
             </div>
           </div>
         </div>
@@ -125,46 +106,20 @@
       </div>
 
       <div id="students" class="content-section">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h3 class="fw-bold">Student Management</h3>
-          <div class="d-flex gap-2">
-            <input
-              type="text"
-              class="form-control"
-              placeholder="Search Roll No..."
-            />
-            <button class="btn btn-primary">Search</button>
-          </div>
-        </div>
-
+        <h3 class="fw-bold mb-4">Student Management</h3>
         <div class="table-container">
           <table class="table table-hover align-middle">
             <thead class="table-light">
               <tr>
                 <th>Roll No</th>
                 <th>Student Name</th>
-                <th>Department</th>
-                <th>Semester</th>
-                <th>Face Data</th>
-                <!-- Actions column removed -->
+                <th>Email</th>
+                <th>Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="studentsTableBody">
               <tr>
-                <td>BIT22022</td>
-                <td>Ayesha Afzal</td>
-                <td>IT</td>
-                <td>7th</td>
-                <td><span class="badge bg-success">Registered</span></td>
-                <!-- Actions buttons removed -->
-              </tr>
-              <tr>
-                <td>BIT22004</td>
-                <td>Ali Raza</td>
-                <td>IT</td>
-                <td>7th</td>
-                <td><span class="badge bg-warning">Not Set</span></td>
-                <!-- Actions buttons removed -->
+                <td colspan="4" class="text-center">Loading...</td>
               </tr>
             </tbody>
           </table>
@@ -172,33 +127,20 @@
       </div>
 
       <div id="teachers" class="content-section">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h3 class="fw-bold">Faculty Members</h3>
-          <button class="btn btn-success">
-            <i class="fas fa-plus me-2"></i>Add Teacher
-          </button>
-        </div>
-
+        <h3 class="fw-bold mb-4">Faculty Members</h3>
         <div class="table-container">
           <table class="table table-hover align-middle">
             <thead class="table-light">
               <tr>
                 <th>Employee ID</th>
                 <th>Teacher Name</th>
-                <th>Department</th>
-                <th>Designation</th>
-                <th>Assigned Courses</th>
-                <!-- Actions column removed -->
+                <th>Email</th>
+                <th>Qualification</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="teachersTableBody">
               <tr>
-                <td>T-2024-01</td>
-                <td>Dr. Shahid Khan</td>
-                <td>Computer Science</td>
-                <td>Assistant Professor</td>
-                <td><span class="badge bg-info">CS-101, CS-304</span></td>
-                <!-- Actions buttons removed -->
+                <td colspan="4" class="text-center">Loading...</td>
               </tr>
             </tbody>
           </table>
@@ -210,10 +152,50 @@
         <div class="card p-5 text-center">
           <i class="fas fa-file-pdf fa-4x text-muted mb-3"></i>
           <h5>Select Date Range to Generate Report</h5>
-          <div class="d-flex justify-content-center gap-3 mt-3">
-            <input type="date" class="form-control w-25" />
-            <input type="date" class="form-control w-25" />
-            <button class="btn btn-danger">Download PDF</button>
+          <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
+            <input type="date" id="reportStartDate" class="form-control w-25" />
+            <input type="date" id="reportEndDate" class="form-control w-25" />
+            <button class="btn btn-danger" onclick="generateReport()">
+              Download PDF
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="fines" class="content-section">
+        <h3 class="fw-bold mb-4">
+          <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+          Low Attendance Students
+        </h3>
+        <div class="card p-4 shadow-sm">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="text-muted mb-0">Students with attendance below 75%</p>
+            <button
+              class="btn btn-warning fw-bold"
+              onclick="loadLowAttendance()"
+            >
+              <i class="fas fa-sync me-2"></i> Refresh
+            </button>
+          </div>
+          <div class="table-container">
+            <table class="table table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Student Name</th>
+                  <th>Email</th>
+                  <th>Course</th>
+                  <th>Attendance</th>
+                  <th>Fine Amount</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="lowAttendanceBody">
+                <tr>
+                  <td colspan="6" class="text-center">
+                    Click Refresh to load data
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -233,54 +215,38 @@
           <div class="modal-body p-4">
             <form id="addUserForm">
               <div class="mb-3">
-                <label class="form-label fw-bold">Full Name</label>
-                <input
+                <label class="form-label fw-bold">Full Name</label
+                ><input
                   type="text"
-                  id="fullName"
                   class="form-control"
+                  id="newName"
                   required
                 />
               </div>
-              <div class="row">
-                <div class="col-6 mb-3">
-                  <label class="form-label fw-bold">ID/Roll No</label>
-                  <input
-                    type="text"
-                    id="rollNo"
-                    class="form-control"
-                    required
-                  />
-                </div>
-                <div class="col-6 mb-3">
-                  <label class="form-label fw-bold">Role</label>
-                  <select id="role" class="form-select">
-                    <option>Student</option>
-                    <option>Teacher</option>
-                  </select>
-                </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Email</label
+                ><input
+                  type="email"
+                  class="form-control"
+                  id="newEmail"
+                  required
+                />
               </div>
-              <div class="row">
-                <div class="col-6 mb-3">
-                  <label class="form-label fw-bold">Department</label>
-                  <select id="department" class="form-select">
-                    <option>IT</option>
-                    <option>CS</option>
-                    <option>SE</option>
-                  </select>
-                </div>
-                <div class="col-6 mb-3">
-                  <label class="form-label fw-bold">Semester</label>
-                  <select id="semester" class="form-select">
-                    <option>1st</option>
-                    <option>2nd</option>
-                    <option>3rd</option>
-                    <option>4th</option>
-                    <option>5th</option>
-                    <option>6th</option>
-                    <option>7th</option>
-                    <option>8th</option>
-                  </select>
-                </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Password</label
+                ><input
+                  type="password"
+                  class="form-control"
+                  id="newPassword"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Role</label
+                ><select class="form-select" id="newRole">
+                  <option>Student</option>
+                  <option>Teacher</option>
+                </select>
               </div>
               <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
                 REGISTER
@@ -291,447 +257,9 @@
       </div>
     </div>
 
-    <!-- =========================================Total Students List Modal ======================================= -->
-    <div class="modal fade" id="studentsListModal" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content border-0">
-          <div
-            class="modal-header"
-            style="
-              background: linear-gradient(135deg, #2c3e50, #1abc9c);
-              color: white;
-            "
-          >
-            <h5 class="modal-title">
-              <i class="fas fa-user-graduate me-2"></i>Students Management -
-              Complete List
-            </h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body p-4">
-            <!-- Statistics Summary -->
-            <div class="row g-3 mb-4">
-              <div class="col-md-3">
-                <div class="card bg-primary bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Total Students</small>
-                  <h4 class="mb-0 text-primary" id="modalTotalStudents">0</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="card bg-success bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Present Today</small>
-                  <h4 class="mb-0 text-success" id="modalPresentToday">0</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="card bg-info bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Departments</small>
-                  <h4 class="mb-0 text-info" id="modalStudentDepts">0</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="card bg-warning bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Face Registered</small>
-                  <h4 class="mb-0 text-warning" id="modalFaceRegistered">0</h4>
-                </div>
-              </div>
-            </div>
-
-            <!-- Search and Filters -->
-            <div class="row g-2 mb-3">
-              <div class="col-md-5">
-                <div class="input-group">
-                  <span class="input-group-text"
-                    ><i class="fas fa-search"></i
-                  ></span>
-                  <input
-                    type="text"
-                    id="studentSearchInput"
-                    class="form-control"
-                    placeholder="Search by Roll No, Name, or Department..."
-                  />
-                </div>
-              </div>
-              <div class="col-md-3">
-                <select id="studentDepartmentFilter" class="form-select">
-                  <option value="all">All Departments</option>
-                  <option value="IT">Information Technology</option>
-                  <option value="CS">Computer Science</option>
-                  <option value="SE">Software Engineering</option>
-                  <option value="AI">Artificial Intelligence</option>
-                  <option value="DS">Data Science</option>
-                </select>
-              </div>
-              <div class="col-md-2">
-                <select id="studentSemesterFilter" class="form-select">
-                  <option value="all">All Semesters</option>
-                  <option value="1st">1st Semester</option>
-                  <option value="2nd">2nd Semester</option>
-                  <option value="3rd">3rd Semester</option>
-                  <option value="4th">4th Semester</option>
-                  <option value="5th">5th Semester</option>
-                  <option value="6th">6th Semester</option>
-                  <option value="7th">7th Semester</option>
-                  <option value="8th">8th Semester</option>
-                </select>
-              </div>
-              <div class="col-md-2">
-                <select id="studentFaceStatusFilter" class="form-select">
-                  <option value="all">All Status</option>
-                  <option value="registered">Face Registered</option>
-                  <option value="notset">Face Not Set</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Bulk Actions -->
-            <div class="row g-2 mb-3">
-              <div class="col-md-12">
-                <div class="btn-group" role="group">
-                  <button
-                    class="btn btn-sm btn-outline-success"
-                    onclick="exportStudentsList()"
-                  >
-                    <i class="fas fa-file-excel me-1"></i>Export to Excel
-                  </button>
-                  <button
-                    class="btn btn-sm btn-outline-primary"
-                    onclick="printStudentsList()"
-                  >
-                    <i class="fas fa-print me-1"></i>Print
-                  </button>
-                  <button
-                    class="btn btn-sm btn-outline-info"
-                    onclick="sendBulkNotification()"
-                  >
-                    <i class="fas fa-bell me-1"></i>Send Notification
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Students Table -->
-            <div
-              class="table-container"
-              style="max-height: 450px; overflow-y: auto"
-            >
-              <table class="table table-hover align-middle">
-                <thead class="table-light sticky-top">
-                  <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        id="selectAllStudents"
-                        onclick="toggleSelectAll()"
-                      />
-                    </th>
-                    <th>Roll No</th>
-                    <th>Student Name</th>
-                    <th>Department</th>
-                    <th>Semester</th>
-                    <th>Face Data</th>
-                    <th>Attendance %</th>
-                    <th class="text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="allStudentsList">
-                  <tr>
-                    <td colspan="8" class="text-center py-4">
-                      <i class="fas fa-spinner fa-spin me-2"></i>Loading
-                      students...
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              class="btn btn-danger"
-              onclick="deleteSelectedStudents()"
-            >
-              <i class="fas fa-trash me-1"></i>Delete Selected
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================Teachers List Modal =======================================-->
-    <div class="modal fade" id="teachersListModal" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content border-0">
-          <div
-            class="modal-header"
-            style="
-              background: linear-gradient(135deg, #3498db, #2c3e50);
-              color: white;
-            "
-          >
-            <h5 class="modal-title">
-              <i class="fas fa-chalkboard-teacher me-2"></i>Faculty Members -
-              Complete List
-            </h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body p-4">
-            <!-- Statistics Summary -->
-            <div class="row g-3 mb-4">
-              <div class="col-md-3">
-                <div class="card bg-primary bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Total Teachers</small>
-                  <h4 class="mb-0 text-primary" id="modalTotalTeachers">0</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="card bg-success bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Active Today</small>
-                  <h4 class="mb-0 text-success" id="modalActiveToday">0</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="card bg-info bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Departments</small>
-                  <h4 class="mb-0 text-info" id="modalDepartmentsCount">0</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="card bg-warning bg-opacity-10 p-2 text-center">
-                  <small class="text-muted">Courses Assigned</small>
-                  <h4 class="mb-0 text-warning" id="modalCoursesCount">0</h4>
-                </div>
-              </div>
-            </div>
-
-            <!-- Search and Filter -->
-            <div class="row g-2 mb-3">
-              <div class="col-md-6">
-                <div class="input-group">
-                  <span class="input-group-text"
-                    ><i class="fas fa-search"></i
-                  ></span>
-                  <input
-                    type="text"
-                    id="teacherSearchInput"
-                    class="form-control"
-                    placeholder="Search by name, ID, or department..."
-                  />
-                </div>
-              </div>
-              <div class="col-md-3">
-                <select id="departmentFilter" class="form-select">
-                  <option value="all">All Departments</option>
-                  <option value="IT">Information Technology</option>
-                  <option value="CS">Computer Science</option>
-                  <option value="SE">Software Engineering</option>
-                  <option value="AI">Artificial Intelligence</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <select id="statusFilter" class="form-select">
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="onleave">On Leave</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Teachers Table -->
-            <div
-              class="table-container"
-              style="max-height: 450px; overflow-y: auto"
-            >
-              <table class="table table-hover align-middle">
-                <thead class="table-light sticky-top">
-                  <tr>
-                    <th>Employee ID</th>
-                    <th>Teacher Name</th>
-                    <th>Department</th>
-                    <th>Designation</th>
-                    <th>Assigned Courses</th>
-                    <th>Status</th>
-                    <th class="text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="allTeachersList">
-                  <tr>
-                    <td colspan="7" class="text-center py-4">
-                      <i class="fas fa-spinner fa-spin me-2"></i>Loading
-                      teachers...
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="exportTeachersList()"
-            >
-              <i class="fas fa-file-excel me-1"></i>Export to Excel
-            </button>
-            <button
-              type="button"
-              class="btn btn-success"
-              onclick="printTeachersList()"
-            >
-              <i class="fas fa-print me-1"></i>Print
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ======================================Today's Present Students Modal =========================================-->
-    <div class="modal fade" id="todayPresentModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content border-0">
-          <div class="modal-header bg-success text-white">
-            <h5 class="modal-title">
-              <i class="fas fa-user-check me-2"></i>Today's Present Students
-            </h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body p-4">
-            <div class="mb-3">
-              <div class="row">
-                <div class="col-md-6">
-                  <p>
-                    <strong
-                      ><i class="fas fa-calendar-alt me-2"></i>Date:</strong
-                    >
-                    <span id="presentDate"></span>
-                  </p>
-                </div>
-                <div class="col-md-6">
-                  <p>
-                    <strong
-                      ><i class="fas fa-users me-2"></i>Total Present:</strong
-                    >
-                    <span
-                      id="totalPresentCount"
-                      class="fw-bold text-success"
-                    ></span>
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div
-              class="table-container"
-              style="max-height: 400px; overflow-y: auto"
-            >
-              <table class="table table-hover align-middle">
-                <thead class="table-light sticky-top">
-                  <tr>
-                    <th>Roll No</th>
-                    <th>Student Name</th>
-                    <th>Department</th>
-                    <th>Time</th>
-                    <th>Mode</th>
-                  </tr>
-                </thead>
-                <tbody id="presentStudentsList">
-                  <tr>
-                    <td colspan="5" class="text-center py-4">
-                      <i class="fas fa-spinner fa-spin me-2"></i>Loading...
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              class="btn btn-success"
-              onclick="exportPresentList()"
-            >
-              <i class="fas fa-download me-1"></i>Export List
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- =======================================Security Alerts Modal ==============================================-->
-    <div class="modal fade" id="securityAlertsModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content border-0">
-          <div class="modal-header bg-danger text-white">
-            <h5 class="modal-title">
-              <i class="fas fa-shield-alt me-2"></i>Security Alerts
-            </h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body p-4">
-            <div id="alertsList">
-              <div class="text-center text-muted py-4">
-                <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                <p>Loading alerts...</p>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-bs-dismiss="modal"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              class="btn btn-danger"
-              onclick="clearAllAlerts()"
-            >
-              Clear All
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/admin-dashboard.js"></script>
+    <script src="static/js/admin-dashboard.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </body>
 </html>
