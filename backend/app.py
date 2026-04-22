@@ -439,6 +439,71 @@ def admin_stats():
         'total_sessions': sessions['total'] if sessions else 0
     })
 
+@app.route('/admin_attendance_trend', methods=['GET'])
+@role_required(['Admin'])
+def admin_attendance_trend():
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    today = date.today()
+    start_date = today.fromordinal(today.toordinal() - 6)
+
+    cursor.execute("""
+        SELECT
+            s.session_id,
+            s.session_date,
+            sec_strength.total_students,
+            COALESCE(SUM(CASE WHEN ar.status = 'Present' THEN 1 ELSE 0 END), 0) AS present_count
+        FROM attendance_sessions s
+        JOIN (
+            SELECT section_id, COUNT(*) AS total_students
+            FROM student_enrollment
+            GROUP BY section_id
+        ) sec_strength ON sec_strength.section_id = s.section_id
+        LEFT JOIN attendance_records ar ON ar.session_id = s.session_id
+        WHERE s.session_date BETWEEN %s AND %s
+        GROUP BY s.session_id, s.session_date, sec_strength.total_students
+        ORDER BY s.session_date ASC
+    """, (start_date, today))
+    session_rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    trend_map = {}
+    for day_offset in range(7):
+        day = start_date.fromordinal(start_date.toordinal() + day_offset)
+        day_key = day.strftime('%Y-%m-%d')
+        trend_map[day_key] = {
+            "label": day.strftime('%a'),
+            "present_count": 0,
+            "total_students": 0
+        }
+
+    for row in session_rows:
+        day_key = row['session_date'].strftime('%Y-%m-%d')
+        if day_key not in trend_map:
+            continue
+        trend_map[day_key]["present_count"] += int(row.get('present_count') or 0)
+        trend_map[day_key]["total_students"] += int(row.get('total_students') or 0)
+
+    trend = []
+    for day_key in sorted(trend_map.keys()):
+        day_data = trend_map[day_key]
+        total_students = day_data["total_students"]
+        present_count = day_data["present_count"]
+        percentage = round((present_count * 100.0 / total_students), 2) if total_students > 0 else 0
+        trend.append({
+            "date": day_key,
+            "label": day_data["label"],
+            "percentage": percentage,
+            "present_count": present_count,
+            "total_students": total_students
+        })
+
+    return jsonify({"status": "success", "trend": trend})
+
 @app.route('/admin_students', methods=['GET'])
 @role_required(['Admin'])
 def admin_students():

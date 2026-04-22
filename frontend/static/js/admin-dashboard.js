@@ -261,18 +261,22 @@ function logout() {
 
 let statsChart = null;
 
-function initChart() {
+function renderChart(labels, values, trendMeta = []) {
   const ctx = document.getElementById("attendanceAreaChart");
   if (!ctx) return;
+
+  if (statsChart) {
+    statsChart.destroy();
+  }
 
   statsChart = new Chart(ctx.getContext("2d"), {
     type: "line",
     data: {
-      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      labels,
       datasets: [
         {
           label: "Attendance Rate",
-          data: [82, 85, 88, 90, 87, 75],
+          data: values,
           borderColor: "#3498db",
           backgroundColor: "rgba(52, 152, 219, 0.1)",
           fill: true,
@@ -283,6 +287,19 @@ function initChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const percentage = Number(context.parsed.y || 0).toFixed(2);
+              const meta = trendMeta[context.dataIndex] || {};
+              const present = Number(meta.present_count || 0);
+              const total = Number(meta.total_students || 0);
+              return `Attendance: ${percentage}% (${present}/${total})`;
+            },
+          },
+        },
+      },
       scales: {
         y: {
           beginAtZero: true,
@@ -294,9 +311,37 @@ function initChart() {
   });
 }
 
+async function loadAttendanceTrendChart() {
+  try {
+    const response = await apiCall("/admin_attendance_trend");
+    if (!response) return;
+
+    const data = await response.json();
+    if (data.status !== "success" || !Array.isArray(data.trend)) {
+      renderChart(
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        [0, 0, 0, 0, 0, 0, 0],
+        [],
+      );
+      return;
+    }
+
+    const labels = data.trend.map((item) => item.label);
+    const values = data.trend.map((item) => Number(item.percentage) || 0);
+    renderChart(labels, values, data.trend);
+  } catch (err) {
+    console.error("Error loading attendance trend chart:", err);
+    renderChart(
+      ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      [0, 0, 0, 0, 0, 0, 0],
+      [],
+    );
+  }
+}
+
 // ============================================
 // INITIALIZE
 // ============================================
 
 loadStats();
-initChart();
+loadAttendanceTrendChart();
