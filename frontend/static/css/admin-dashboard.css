@@ -1,140 +1,146 @@
 :root {
-    --sidebar-width: 260px;
-    --primary-color: #2c3e50;
-    --accent-color: #1abc9c;
-    --btn-color: #2890b9;
-    --btn-hover-color: #1c6c8c;
+  --sidebar-width: 260px;
+  --primary-color: #2c3e50;
+  --accent-color: #1abc9c;
+  --btn-color: #2890b9;
+  --btn-hover-color: #1c6c8c;
 }
 
 body {
-    background-color: #f4f7f6;
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    overflow-x: hidden;
+  background-color: #f4f7f6;
+  font-family: "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
 }
 
 /* Sidebar */
 .sidebar {
-    width: var(--sidebar-width);
-    height: 100vh;
-    position: fixed;
-    background: var(--primary-color);
-    color: white;
-    z-index: 1000;
+  width: var(--sidebar-width);
+  height: 100vh;
+  position: fixed;
+  background: var(--primary-color);
+  color: white;
+  z-index: 1000;
 }
 
 .sidebar-header {
-    padding: 25px;
-    text-align: center;
-    background: rgba(0,0,0,0.1);
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 25px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .nav-link {
-    color: #bdc3c7;
-    padding: 15px 25px;
-    border-left: 4px solid transparent;
-    cursor: pointer;
-    transition: 0.3s;
+  color: #bdc3c7;
+  padding: 15px 25px;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+  transition: 0.3s;
 }
 
 .nav-link:hover,
 .nav-link.active {
-    color: white;
-    background: #34495e;
-    border-left: 4px solid var(--accent-color);
+  color: white;
+  background: #34495e;
+  border-left: 4px solid var(--accent-color);
 }
 
 /* Main Content */
 .main-content {
-    margin-left: var(--sidebar-width);
-    padding: 30px;
-    min-height: 100vh;
+  margin-left: var(--sidebar-width);
+  padding: 30px;
+  min-height: 100vh;
 }
 
 .content-section {
-    display: none;
+  display: none;
 }
 
 .content-section.active {
-    display: block;
-    animation: fadeIn 0.5s;
+  display: block;
+  animation: fadeIn 0.5s;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Cards */
 .card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 .stat-card {
-    border-left: 5px solid var(--accent-color);
-    transition: transform 0.3s;
+  border-left: 5px solid var(--accent-color);
+  transition: transform 0.3s;
 }
 
 .stat-card:hover {
-    transform: translateY(-5px);
+  transform: translateY(-5px);
 }
 
 .stat-card h6 {
-    color: #7f8c8d;
-    font-size: 14px;
+  color: #7f8c8d;
+  font-size: 14px;
 }
 
 .stat-card h2 {
-    color: #2c3e50;
-    font-weight: 700;
+  color: #2c3e50;
+  font-weight: 700;
 }
 
 /* Table Container */
 .table-container {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 /* Add User Button */
 .add-user-btn {
-    background-color: var(--btn-color);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 25px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s;
+  background-color: var(--btn-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 25px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
 }
 
 .add-user-btn:hover {
-    background-color: var(--btn-hover-color);
+  background-color: var(--btn-hover-color);
 }
 
 /* Modal */
 #addUserModal .modal-header {
-    background-color: #2890b9;
-    color: white;
+  background-color: #2890b9;
+  color: white;
 }
 
 #addUserModal .modal-header .modal-title {
-    color: white;
+  color: white;
 }
 
 #addUserModal button[type="submit"] {
-    background-color: var(--btn-color);
-    color: white;
-    font-weight: 600;
-    border: none;
-    border-radius: 8px;
-    padding: 10px;
-    transition: all 0.3s;
+  background-color: var(--btn-color);
+  color: white;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  transition: all 0.3s;
 }
 
 #addUserModal button[type="submit"]:hover {
-    background-color: var(--btn-hover-color);
+  background-color: var(--btn-hover-color);
 }
