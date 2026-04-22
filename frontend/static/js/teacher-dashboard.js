@@ -22,6 +22,47 @@ let qrRefreshInterval = null;
 let countdownInterval = null;
 let isQRCodeActive = false;
 
+function updateActiveSessionIdDisplay() {
+    const sessionIdEl = document.getElementById('activeSessionId');
+    if (sessionIdEl) {
+        sessionIdEl.textContent = currentSessionId || '--';
+    }
+}
+
+async function copySessionId(event) {
+    if (event) event.stopPropagation();
+    if (!currentSessionId) {
+        return;
+    }
+
+    const copyIcon = document.getElementById('copySessionIcon');
+    const valueToCopy = String(currentSessionId);
+
+    const markCopied = () => {
+        if (!copyIcon) return;
+        copyIcon.classList.add('copied');
+        setTimeout(() => copyIcon.classList.remove('copied'), 900);
+    };
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(valueToCopy);
+            markCopied();
+            return;
+        }
+    } catch (err) {
+        console.error('Clipboard copy failed, using fallback:', err);
+    }
+
+    const tempInput = document.createElement('input');
+    tempInput.value = valueToCopy;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand('copy');
+    document.body.removeChild(tempInput);
+    markCopied();
+}
+
 // Display teacher name
 const teacherNameEl = document.getElementById('teacherName');
 if (teacherNameEl) teacherNameEl.textContent = user.name;
@@ -124,6 +165,7 @@ async function startSession(sectionId, courseCode) {
         
         if (data.status === 'success') {
             currentSessionId = data.session_id;
+            updateActiveSessionIdDisplay();
             
             const activeSession = document.getElementById('activeSession');
             const modeSelector = document.getElementById('modeSelector');
@@ -286,47 +328,65 @@ async function activateQRMode() {
 // DEACTIVATE QR MODE
 // ============================================
 
-function deactivateQRMode() {
+async function deactivateQRMode() {
     if (!confirm('Stop QR code? Students will no longer be able to scan.')) return;
-    
-    isQRCodeActive = false;
-    
-    if (qrRefreshInterval) clearInterval(qrRefreshInterval);
-    if (countdownInterval) clearInterval(countdownInterval);
-    qrRefreshInterval = null;
-    countdownInterval = null;
-    
-    const qrPlaceholder = document.getElementById('qrPlaceholder');
-    const qrImg = document.getElementById('qrImg');
-    const startBtn = document.getElementById('startQrBtn');
-    const stopBtn = document.getElementById('stopQrBtn');
-    const refreshBtn = document.getElementById('refreshQrBtn');
-    const qrCountdown = document.getElementById('qrCountdown');
-    const qrMsg = document.getElementById('qrMsg');
-    
-    if (qrPlaceholder) {
-        qrPlaceholder.innerHTML = `
-            <i class="fas fa-qrcode fa-5x mb-3"></i>
-            <p>Ready to start QR attendance</p>
-            <small>Click "Start QR" to generate code</small>
-        `;
-        qrPlaceholder.classList.remove('hidden');
-    }
-    
-    if (qrImg) qrImg.classList.add('hidden');
-    if (startBtn) startBtn.classList.remove('hidden');
-    if (stopBtn) stopBtn.classList.add('hidden');
-    if (refreshBtn) refreshBtn.classList.add('hidden');
-    if (qrCountdown) qrCountdown.textContent = '--';
-    
-    if (startBtn) {
-        startBtn.disabled = false;
-        startBtn.innerHTML = '<i class="fas fa-play"></i> Start QR';
-    }
-    
-    if (qrMsg) {
-        qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR code stopped. Click "Start QR" to activate again.';
-        qrMsg.style.color = '#3498db';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/stop_qr`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: currentSessionId })
+        });
+
+        const data = await response.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'Unable to stop QR');
+            return;
+        }
+
+        isQRCodeActive = false;
+
+        if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+        if (countdownInterval) clearInterval(countdownInterval);
+        qrRefreshInterval = null;
+        countdownInterval = null;
+
+        const qrPlaceholder = document.getElementById('qrPlaceholder');
+        const qrImg = document.getElementById('qrImg');
+        const startBtn = document.getElementById('startQrBtn');
+        const stopBtn = document.getElementById('stopQrBtn');
+        const refreshBtn = document.getElementById('refreshQrBtn');
+        const qrCountdown = document.getElementById('qrCountdown');
+        const qrMsg = document.getElementById('qrMsg');
+
+        if (qrPlaceholder) {
+            qrPlaceholder.innerHTML = `
+                <i class="fas fa-qrcode fa-5x mb-3"></i>
+                <p>Ready to start QR attendance</p>
+                <small>Click "Start QR" to generate code</small>
+            `;
+            qrPlaceholder.classList.remove('hidden');
+        }
+
+        if (qrImg) qrImg.classList.add('hidden');
+        if (startBtn) startBtn.classList.remove('hidden');
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (refreshBtn) refreshBtn.classList.add('hidden');
+        if (qrCountdown) qrCountdown.textContent = '--';
+
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-play"></i> Start QR';
+        }
+
+        if (qrMsg) {
+            qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR code stopped. Click "Start QR" to activate again.';
+            qrMsg.style.color = '#3498db';
+        }
+    } catch (err) {
+        console.error('Error stopping QR:', err);
+        alert('Error stopping QR code');
     }
 }
 
@@ -468,6 +528,7 @@ async function closeSession() {
         });
         
         currentSessionId = null;
+        updateActiveSessionIdDisplay();
         isQRCodeActive = false;
         
         if (refreshInterval) clearInterval(refreshInterval);

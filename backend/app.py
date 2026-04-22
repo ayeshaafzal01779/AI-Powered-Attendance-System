@@ -6,15 +6,28 @@ import io
 import base64
 import uuid
 import os
+import hmac
+import hashlib
 from functools import wraps
 from database import get_db_connection
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import bcrypt
+from dotenv import load_dotenv
 
-# Email Configuration
-GMAIL_USER = 'meerabgohar23@gmail.com'
-GMAIL_PASSWORD = 'ssyn zsqf wxnq ecdy'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+def require_env(var_name):
+    value = os.getenv(var_name)
+    if value is None or value.strip() == "":
+        raise RuntimeError(f"Missing required environment variable: {var_name}")
+    return value
+
+# Email Configuration (must be provided through environment variables)
+GMAIL_USER = require_env("GMAIL_USER")
+GMAIL_PASSWORD = require_env("GMAIL_PASSWORD")
 
 def send_email(to_email, subject, body):
     try:
@@ -35,17 +48,23 @@ def send_email(to_email, subject, body):
         return False
 
 # Flask app setup
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = Flask(__name__, 
             template_folder=os.path.join(BASE_DIR, 'frontend', 'templates'),
             static_folder=os.path.join(BASE_DIR, 'frontend', 'static'),
             static_url_path='/static')
 
 # CORS setup - Allow credentials
-CORS(app, supports_credentials=True, origins=['http://127.0.0.1:5000', 'http://localhost:5000'])
+allowed_origins = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000")
+CORS(
+    app,
+    supports_credentials=True,
+    origins=[origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
+)
 
 # Required for session
-app.secret_key = "your_secret_key_123"
+app.secret_key = require_env("FLASK_SECRET_KEY")
+QR_SIGNING_SECRET = require_env("FLASK_SECRET_KEY")
+QR_EXPIRY_SECONDS = 15
 
 # ============================================
 # ROLE PROTECTION DECORATORS
@@ -121,7 +140,7 @@ def current_user():
     })
 
 # ============================================
-# LOGIN API
+# LOGIN API (WITH HASHED PASSWORD)
 # ============================================
 
 @app.route('/login', methods=['POST'])
@@ -139,8 +158,8 @@ def login():
 
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT user_id, full_name, email, role FROM users WHERE email = %s AND password = %s",
-        (email, password)
+        "SELECT user_id, full_name, email, role, password FROM users WHERE email = %s",
+        (email,)
     )
     user = cursor.fetchone()
     cursor.close()
@@ -149,19 +168,49 @@ def login():
     if not user:
         return jsonify({"status": "error", "message": "Invalid email or password"}), 401
     
-    # Store session
-    session['user_id'] = user['user_id']
-    session['role'] = user['role']
-    
-    return jsonify({
-        "status": "success",
-        "user": {
-            "id": user['user_id'],
-            "name": user['full_name'],
-            "email": user['email'],
-            "role": user['role']
-        }
-    })
+    # Verify hashed password
+    try:
+        if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+            session['user_id'] = user['user_id']
+            session['role'] = user['role']
+            
+            return jsonify({
+                "status": "success",
+                "user": {
+                    "id": user['user_id'],
+                    "name": user['full_name'],
+                    "email": user['email'],
+                    "role": user['role']
+                }
+            })
+        else:
+            return jsonify({"status": "error", "message": "Invalid email or password"}), 401
+    except Exception as e:
+        # If password is not hashed (plain text), compare directly
+        if user['password'] == password:
+            session['user_id'] = user['user_id']
+            session['role'] = user['role']
+            
+            # Optionally update to hashed password
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("UPDATE users SET password = %s WHERE user_id = %s", (hashed.decode('utf-8'), user['user_id']))
+            conn.commit()
+            cur.close()
+            conn.close()
+            
+            return jsonify({
+                "status": "success",
+                "user": {
+                    "id": user['user_id'],
+                    "name": user['full_name'],
+                    "email": user['email'],
+                    "role": user['role']
+                }
+            })
+        else:
+            return jsonify({"status": "error", "message": "Invalid email or password"}), 401
 
 # ============================================
 # GET LOW ATTENDANCE STUDENTS (ADMIN)
@@ -296,7 +345,7 @@ def pay_fine():
     """, (fine_id, session['user_id']))
     conn.commit()
     
-    # ← YAHAN SE NAYA CODE ADD KARO
+    # Get fine info for email
     cursor2 = conn.cursor(dictionary=True)
     cursor2.execute("""
         SELECT u.email, u.full_name, f.course_name, f.fine_amount 
@@ -311,7 +360,7 @@ def pay_fine():
         email_body = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: #27ae60; padding: 20px; text-align: center;">
-                <h2 style="color: white; margin: 0;">✅ Payment Successful!</h2>
+                <h2 style="color: white; margin: 0;">Payment Successful!</h2>
             </div>
             <div style="padding: 30px; background: #f9f9f9;">
                 <p>Dear <strong>{fine_info['full_name']}</strong>,</p>
@@ -320,20 +369,20 @@ def pay_fine():
                     <tr style="background:#ecf0f1;">
                         <td style="padding:10px; border:1px solid #ddd;"><strong>Course</strong></td>
                         <td style="padding:10px; border:1px solid #ddd;">{fine_info['course_name']}</td>
-                    </tr>
-                    <tr>
+                     </tr>
+                     <tr>
                         <td style="padding:10px; border:1px solid #ddd;"><strong>Amount Paid</strong></td>
                         <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
                             <strong>Rs. {fine_info['fine_amount']}</strong>
-                        </td>
-                    </tr>
-                    <tr style="background:#ecf0f1;">
+                         </td>
+                     </tr>
+                     <tr style="background:#ecf0f1;">
                         <td style="padding:10px; border:1px solid #ddd;"><strong>Status</strong></td>
                         <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
-                            <strong>PAID ✅</strong>
-                        </td>
-                    </tr>
-                </table>
+                            <strong>PAIDx</strong>
+                         </td>
+                     </tr>
+                 </table>
                 <p style="color:#666;">Please improve your attendance to avoid future fines.</p>
                 <p>Regards,<br><strong>AI Attendance System</strong></p>
             </div>
@@ -344,6 +393,7 @@ def pay_fine():
     cursor.close()
     conn.close()
     return jsonify({"status": "success", "message": "Fine paid successfully"})
+
 # ============================================
 # LOGOUT
 # ============================================
@@ -421,6 +471,49 @@ def admin_teachers():
 # TEACHER APIs
 # ============================================
 
+def build_qr_payload(session_id):
+    """Generate and persist a fresh QR code for a session."""
+    now = datetime.now()
+    timestamp = f"{now.timestamp():.6f}"
+    payload_to_sign = f"SESSION:{session_id}:{timestamp}"
+    signature = hmac.new(
+        QR_SIGNING_SECRET.encode('utf-8'),
+        payload_to_sign.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    qr_data = f"{payload_to_sign}:{signature}"
+    qr_img = qrcode.make(qr_data)
+
+    buf = io.BytesIO()
+    qr_img.save(buf, format="PNG")
+    qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    return qr_base64, now
+
+def parse_qr_payload(qr_payload):
+    """Expected payload format: SESSION:<session_id>:<qr_timestamp>:<signature>."""
+    if not qr_payload or not isinstance(qr_payload, str):
+        return None, None
+
+    parts = qr_payload.split(":")
+    if len(parts) != 4 or parts[0] != "SESSION":
+        return None, None
+
+    try:
+        session_id = int(parts[1])
+        qr_timestamp = float(parts[2])
+        provided_signature = parts[3]
+        payload_to_sign = f"SESSION:{session_id}:{parts[2]}"
+        expected_signature = hmac.new(
+            QR_SIGNING_SECRET.encode('utf-8'),
+            payload_to_sign.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(provided_signature, expected_signature):
+            return None, None
+        return session_id, qr_timestamp
+    except (ValueError, TypeError):
+        return None, None
+
 @app.route('/teacher_courses', methods=['GET'])
 @role_required(['Teacher'])
 def get_teacher_courses():
@@ -446,7 +539,7 @@ def get_teacher_courses():
         JOIN course_semester cs ON s.cs_id = cs.cs_id
         JOIN courses c ON cs.course_id = c.course_id
         JOIN departments dep ON c.dept_id = dep.dept_id
-        WHERE s.teacher_id = %s AND s.is_active = TRUE
+        WHERE s.teacher_id = %s AND s.is_active = 1
     """, (teacher_id,))
     
     courses = cursor.fetchall()
@@ -470,14 +563,24 @@ def start_session():
         return jsonify({"status": "error", "message": "DB connection failed"}), 500
 
     cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT section_id FROM sections WHERE section_id = %s AND teacher_id = %s AND is_active = 1",
+        (section_id, teacher_id)
+    )
+    section = cursor.fetchone()
+    if not section:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Section not assigned to this teacher"}), 403
 
     today = date.today()
     now = datetime.now()
     session_token = str(uuid.uuid4())
 
+    # Check for existing active session for this section today
     cursor.execute(
         """SELECT session_id FROM attendance_sessions 
-           WHERE section_id = %s AND session_date = %s AND status = 'Active'""",
+           WHERE section_id = %s AND session_date = %s AND is_active = 1""",
         (section_id, today)
     )
     existing = cursor.fetchone()
@@ -487,23 +590,18 @@ def start_session():
     else:
         cursor.execute(
             """INSERT INTO attendance_sessions 
-               (section_id, teacher_id, session_date, start_time, session_token, mode, status) 
-               VALUES (%s, %s, %s, %s, %s, 'Hybrid', 'Active')""",
+               (section_id, teacher_id, session_date, start_time, session_token, mode, is_active) 
+               VALUES (%s, %s, %s, %s, %s, 'Hybrid', 1)""",
             (section_id, teacher_id, today, now, session_token)
         )
         session_id = cursor.lastrowid
         conn.commit()
 
-    qr_data = f"SESSION:{session_id}:{now.timestamp()}"
-    qr_img = qrcode.make(qr_data)
-
-    buf = io.BytesIO()
-    qr_img.save(buf, format="PNG")
-    qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    qr_base64, qr_generated_at = build_qr_payload(session_id)
 
     cursor.execute(
         "UPDATE attendance_sessions SET qr_code = %s, qr_generated_at = %s WHERE session_id = %s",
-        (qr_base64, now, session_id)
+        (qr_base64, qr_generated_at, session_id)
     )
     conn.commit()
 
@@ -513,13 +611,96 @@ def start_session():
     return jsonify({
         "status": "success",
         "session_id": session_id,
-        "qr_code": qr_base64
+        "qr_code": qr_base64,
+        "expires_in": QR_EXPIRY_SECONDS
     })
+
+@app.route('/generate_qr', methods=['POST'])
+@role_required(['Teacher'])
+def generate_qr():
+    data = request.json or {}
+    session_id = data.get('session_id')
+    teacher_id = session.get('user_id')
+
+    if not session_id:
+        return jsonify({"status": "error", "message": "Session ID missing"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """SELECT session_id FROM attendance_sessions
+           WHERE session_id = %s AND teacher_id = %s AND is_active = 1""",
+        (session_id, teacher_id)
+    )
+    session_row = cursor.fetchone()
+
+    if not session_row:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Active session not found"}), 404
+
+    qr_base64, qr_generated_at = build_qr_payload(session_id)
+    cursor.execute(
+        "UPDATE attendance_sessions SET qr_code = %s, qr_generated_at = %s WHERE session_id = %s",
+        (qr_base64, qr_generated_at, session_id)
+    )
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "status": "success",
+        "session_id": session_id,
+        "qr_code": qr_base64,
+        "expires_in": QR_EXPIRY_SECONDS
+    })
+
+@app.route('/refresh_qr', methods=['POST'])
+@role_required(['Teacher'])
+def refresh_qr():
+    return generate_qr()
+
+@app.route('/stop_qr', methods=['POST'])
+@role_required(['Teacher'])
+def stop_qr():
+    data = request.json or {}
+    session_id = data.get('session_id')
+    teacher_id = session.get('user_id')
+
+    if not session_id:
+        return jsonify({"status": "error", "message": "Session ID missing"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """UPDATE attendance_sessions
+           SET qr_code = NULL, qr_generated_at = NULL
+           WHERE session_id = %s AND teacher_id = %s AND is_active = 1""",
+        (session_id, teacher_id)
+    )
+    conn.commit()
+
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Active session not found"}), 404
+
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "message": "QR stopped successfully"})
 
 @app.route('/attendance_list', methods=['GET'])
 @role_required(['Teacher'])
 def get_attendance_list():
     session_id = request.args.get('session_id')
+    teacher_id = session.get('user_id')
     
     if not session_id:
         return jsonify({"status": "error", "message": "Session ID missing"}), 400
@@ -529,6 +710,15 @@ def get_attendance_list():
         return jsonify({"status": "error", "message": "DB connection failed"}), 500
 
     cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT section_id FROM attendance_sessions WHERE session_id = %s AND teacher_id = %s",
+        (session_id, teacher_id)
+    )
+    session_row = cursor.fetchone()
+    if not session_row:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Session not found"}), 404
     
     cursor.execute("""
         SELECT 
@@ -541,9 +731,9 @@ def get_attendance_list():
         FROM student_enrollment se
         JOIN users u ON se.student_id = u.user_id
         LEFT JOIN attendance_records ar ON ar.student_id = u.user_id AND ar.session_id = %s
-        WHERE se.section_id = (SELECT section_id FROM attendance_sessions WHERE session_id = %s)
+        WHERE se.section_id = %s
         ORDER BY u.full_name
-    """, (session_id, session_id))
+    """, (session_id, session_row['section_id']))
     
     records = cursor.fetchall()
     cursor.close()
@@ -554,8 +744,9 @@ def get_attendance_list():
 @app.route('/close_session', methods=['POST'])
 @role_required(['Teacher'])
 def close_session():
-    data = request.json
+    data = request.json or {}
     session_id = data.get('session_id')
+    teacher_id = session.get('user_id')
     
     if not session_id:
         return jsonify({"status": "error", "message": "Session ID missing"}), 400
@@ -567,10 +758,14 @@ def close_session():
     cursor = conn.cursor()
     
     cursor.execute(
-        "UPDATE attendance_sessions SET status = 'Closed', end_time = %s WHERE session_id = %s",
-        (datetime.now(), session_id)
+        "UPDATE attendance_sessions SET is_active = 0, end_time = %s WHERE session_id = %s AND teacher_id = %s",
+        (datetime.now(), session_id, teacher_id)
     )
     conn.commit()
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Session not found"}), 404
     
     cursor.close()
     conn.close()
@@ -584,10 +779,19 @@ def close_session():
 @app.route('/mark_attendance', methods=['POST'])
 @role_required(['Student'])
 def mark_attendance():
-    data = request.json
+    data = request.json or {}
     student_id = session.get('user_id')
-    session_id = data.get('session_id')
     mode = data.get('mode', 'QR')
+    session_id = data.get('session_id')
+    qr_payload = data.get('qr_payload')
+
+    if mode == 'QR':
+        parsed_session_id, qr_timestamp = parse_qr_payload(qr_payload)
+        if not parsed_session_id or qr_timestamp is None:
+            return jsonify({"status": "error", "message": "Invalid QR payload"}), 400
+        session_id = parsed_session_id
+    else:
+        qr_timestamp = None
 
     if not session_id:
         return jsonify({"status": "error", "message": "Session ID missing"}), 400
@@ -596,28 +800,54 @@ def mark_attendance():
     if conn is None:
         return jsonify({"status": "error", "message": "DB connection failed"}), 500
 
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
     # Check if session exists and is active
-    cursor.execute(
-        "SELECT status FROM attendance_sessions WHERE session_id = %s",
-        (session_id,)
-    )
+    cursor.execute("""
+        SELECT session_id, section_id, is_active, qr_generated_at
+        FROM attendance_sessions
+        WHERE session_id = %s
+    """, (session_id,))
     session_result = cursor.fetchone()
     
     if not session_result:
         cursor.close()
         conn.close()
-        return jsonify({"status": "error", "message": "Session not found"}), 400
+        return jsonify({"status": "error", "message": "Session not found"}), 404
     
-    if session_result[0] != 'Active':
+    if session_result['is_active'] != 1:
         cursor.close()
         conn.close()
         return jsonify({"status": "error", "message": "Session is not active"}), 400
 
+    section_id = session_result['section_id']
+
+    # Ensure student belongs to this section.
+    cursor.execute("""
+        SELECT enrollment_id
+        FROM student_enrollment
+        WHERE student_id = %s AND section_id = %s
+        LIMIT 1
+    """, (student_id, section_id))
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "You are not enrolled in this section"}), 403
+
+    if mode == 'QR':
+        qr_generated_at = session_result.get('qr_generated_at')
+        if not qr_generated_at:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "QR is not active"}), 400
+        if datetime.now().timestamp() - qr_timestamp > QR_EXPIRY_SECONDS:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "QR code expired"}), 400
+
     # Check duplicate attendance
     cursor.execute(
-        "SELECT record_id FROM attendance_records WHERE session_id=%s AND student_id=%s",
+        "SELECT record_id FROM attendance_records WHERE session_id=%s AND student_id=%s LIMIT 1",
         (session_id, student_id)
     )
     if cursor.fetchone():
@@ -626,11 +856,21 @@ def mark_attendance():
         return jsonify({"status": "error", "message": "Attendance already marked"}), 400
 
     # Insert attendance
-    cursor.execute("""
-        INSERT INTO attendance_records (session_id, student_id, mode, status, sync_status) 
-        VALUES (%s, %s, %s, 'Present', 'Synced')
-    """, (session_id, student_id, mode))
-    conn.commit()
+    try:
+        cursor.execute("""
+            INSERT INTO attendance_records (session_id, student_id, section_id, mode, status, sync_status) 
+            VALUES (%s, %s, %s, %s, 'Present', 'Synced')
+        """, (session_id, student_id, section_id, mode))
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        if "Duplicate entry" in str(exc):
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Attendance already marked"}), 400
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Failed to mark attendance"}), 500
     
     cursor.close()
     conn.close()
@@ -649,22 +889,22 @@ def get_my_attendance():
     cursor = conn.cursor(dictionary=True)
     
     cursor.execute("""
-    SELECT
-        c.course_code,
-        c.course_name,
-        COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) as present_days,
-        COUNT(DISTINCT ar.record_id) as total_sessions,
-        ROUND(
-            COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) * 100.0 /
-            NULLIF(COUNT(DISTINCT ar.record_id), 0),
-        2) as percentage
-    FROM attendance_records ar
-    JOIN sections sec ON ar.section_id = sec.section_id
-    JOIN course_semester cs ON sec.cs_id = cs.cs_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE ar.student_id = %s
-    GROUP BY c.course_code, c.course_name
-""", (session['user_id'],))
+        SELECT
+            c.course_code,
+            c.course_name,
+            COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) as present_days,
+            COUNT(DISTINCT ar.record_id) as total_sessions,
+            ROUND(
+                COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) * 100.0 /
+                NULLIF(COUNT(DISTINCT ar.record_id), 0), 2
+            ) as percentage
+        FROM attendance_records ar
+        JOIN sections sec ON ar.section_id = sec.section_id
+        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+        JOIN courses c ON cs.course_id = c.course_id
+        WHERE ar.student_id = %s
+        GROUP BY c.course_code, c.course_name
+    """, (student_id,))
     
     attendance = cursor.fetchall()
     cursor.close()
@@ -676,7 +916,8 @@ def get_my_attendance():
 # RUN APP
 # ============================================
 
-
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    host = os.getenv("FLASK_HOST", "127.0.0.1")
+    port = int(os.getenv("FLASK_PORT", "5000"))
+    app.run(debug=debug_mode, host=host, port=port)

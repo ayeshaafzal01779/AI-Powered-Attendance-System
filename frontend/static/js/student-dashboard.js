@@ -237,6 +237,7 @@ function updateChart(labels, data) {
 function openQRScanner() {
   const modal = document.getElementById("qrModal");
   if (modal) modal.classList.remove("hidden");
+  setScannerFallbackUI(false, "");
   startQRScanner();
 }
 
@@ -244,12 +245,45 @@ function closeQRScanner() {
   const modal = document.getElementById("qrModal");
   if (modal) modal.classList.add("hidden");
   stopQRScanner();
+  setScannerFallbackUI(false, "");
+}
+
+function setScannerFallbackUI(showFallback, noteText) {
+  const fallbackBtn = document.getElementById("enterSessionBtn");
+  const fallbackNote = document.getElementById("qr-fallback-note");
+  const statusDiv = document.getElementById("qr-status");
+
+  if (fallbackBtn) fallbackBtn.classList.toggle("hidden", !showFallback);
+  if (fallbackNote) {
+    fallbackNote.classList.toggle("hidden", !showFallback);
+    if (noteText) fallbackNote.textContent = noteText;
+  }
+  if (statusDiv && noteText) statusDiv.textContent = noteText;
 }
 
 async function startQRScanner() {
   if (isScanning) return;
 
   const statusDiv = document.getElementById("qr-status");
+
+  if (typeof Html5Qrcode === "undefined") {
+    setScannerFallbackUI(
+      true,
+      "QR scanner library cannot load. Enter Session ID manually.",
+    );
+    return;
+  }
+
+  const isLocalhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+  if (!window.isSecureContext && !isLocalhost) {
+    setScannerFallbackUI(
+      true,
+      "Camera permission denied. Enter Session ID manually.",
+    );
+    return;
+  }
 
   html5QrCode = new Html5Qrcode("qr-reader");
 
@@ -271,9 +305,13 @@ async function startQRScanner() {
     console.error("Unable to start scanning:", err);
     if (statusDiv) {
       statusDiv.textContent =
-        "Camera access denied. Please allow camera permission.";
+        "Camera access denied. Please allow camera permission or use Session ID fallback.";
       statusDiv.style.color = "#e74c3c";
     }
+    setScannerFallbackUI(
+      true,
+      "Camera permission denied. 'Enter Session ID Instead of Scan '.",
+    );
     isScanning = false;
   }
 }
@@ -300,19 +338,23 @@ async function onQRSuccess(decodedText) {
 
   const parts = decodedText.split(":");
 
-  if (parts.length < 2 || parts[0] !== "SESSION") {
+  if (parts.length !== 4 || parts[0] !== "SESSION") {
     showMessage("Invalid QR Code. Please scan teacher's QR code.", "error");
     return;
   }
 
-  const sessionId = parseInt(parts[1]);
+  const sessionId = parseInt(parts[1], 10);
 
   if (isNaN(sessionId)) {
     showMessage("Invalid Session ID in QR code.", "error");
     return;
   }
 
-  await markAttendance(sessionId, "QR");
+  await markAttendance({
+    sessionId,
+    mode: "QR",
+    qrPayload: decodedText,
+  });
 }
 
 function onQRFailure(errorMessage) {
@@ -326,15 +368,18 @@ function onQRFailure(errorMessage) {
 // MARK ATTENDANCE
 // ============================================
 
-async function markAttendance(sessionId, mode) {
+async function markAttendance({ sessionId, mode, qrPayload = null }) {
   showMessage("Processing attendance...", "success");
 
   try {
+    const payload = { session_id: sessionId, mode: mode };
+    if (qrPayload) payload.qr_payload = qrPayload;
+
     const response = await fetch(`${API_BASE_URL}/mark_attendance`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, mode: mode }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
@@ -356,9 +401,14 @@ async function markAttendance(sessionId, mode) {
 // ============================================
 
 function markQR() {
-  const sessionId = prompt("📱 Enter Session ID (provided by teacher):");
-  if (!sessionId) return;
-  markAttendance(parseInt(sessionId), "QR");
+  const sessionIdInput = prompt("📱 Enter Session ID (provided by teacher):");
+  if (!sessionIdInput) return;
+  const sessionId = parseInt(sessionIdInput, 10);
+  if (isNaN(sessionId) || sessionId <= 0) {
+    showMessage("Please enter a valid numeric session ID.", "error");
+    return;
+  }
+  markAttendance({ sessionId, mode: "Manual" });
 }
 
 // ============================================
@@ -366,10 +416,15 @@ function markQR() {
 // ============================================
 
 function markFace() {
-  const sessionId = prompt("📸 Enter Session ID (provided by teacher):");
-  if (!sessionId) return;
+  const sessionIdInput = prompt("📸 Enter Session ID (provided by teacher):");
+  if (!sessionIdInput) return;
+  const sessionId = parseInt(sessionIdInput, 10);
+  if (isNaN(sessionId) || sessionId <= 0) {
+    showMessage("Please enter a valid numeric session ID.", "error");
+    return;
+  }
   alert("📸 Face Recognition: Please position your face in front of camera");
-  markAttendance(parseInt(sessionId), "Face");
+  markAttendance({ sessionId, mode: "Face" });
 }
 
 // ============================================

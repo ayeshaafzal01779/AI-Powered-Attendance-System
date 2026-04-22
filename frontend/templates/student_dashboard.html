@@ -68,6 +68,9 @@
         <button class="qr-btn" onclick="openQRScanner()">
             <i class="fas fa-qrcode"></i> Scan QR Code
         </button>
+        <button class="qr-btn" onclick="markQR()">
+            <i class="fas fa-keyboard"></i> Enter Session ID
+        </button>
         <button class="face-btn" onclick="markFace()">
             <i class="fas fa-face-smile"></i> Facial Recognition
         </button>
@@ -100,8 +103,14 @@
         <div class="qr-modal-body">
             <div id="qr-reader" style="width: 100%;"></div>
             <div id="qr-status" class="qr-status">Position QR code in frame</div>
+            <div id="qr-fallback-note" class="qr-status hidden">
+                If camera is not available, Enter the session ID Manually.
+            </div>
         </div>
         <div class="qr-modal-footer">
+            <button id="enterSessionBtn" class="btn-cancel hidden" onclick="markQR()">
+                Enter Session ID Instead
+            </button>
             <button class="btn-cancel" onclick="closeQRScanner()">Cancel</button>
         </div>
     </div>
