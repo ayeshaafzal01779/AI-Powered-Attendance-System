@@ -189,6 +189,7 @@ async function loadStudents() {
                     <td>${student.registration_no || "-"}</td>
                     <td>${student.full_name}</td>
                     <td>${student.email}</td>
+                    <td>${student.dept_name || "-"}</td>
                     <td><span class="badge bg-success">Active</span></td>
                 `;
       });
@@ -253,6 +254,364 @@ function showSection(sectionId) {
 function logout() {
   localStorage.clear();
   window.location.href = "/";
+}
+
+// ============================================
+// REPORTS
+// ============================================
+
+async function generateReport() {
+  const startDate = document.getElementById("reportStartDate")?.value;
+  const endDate = document.getElementById("reportEndDate")?.value;
+  const formatSelect = document.getElementById("reportFormat");
+  const format = formatSelect?.value || "pdf";
+
+  if (!startDate || !endDate) {
+    alert("Please select both start and end dates.");
+    return;
+  }
+
+  if (startDate > endDate) {
+    alert("Start date cannot be after end date.");
+    return;
+  }
+
+  const button = document.querySelector('#reports button.btn.btn-danger');
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+  }
+
+  try {
+    const queryString = `start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&format=${encodeURIComponent(format)}`;
+    const candidateUrls = [
+      `/admin_reports_download?${queryString}`,
+      `/generate_report?${queryString}`,
+      `/admin_report_download?${queryString}`,
+      `/download_report?${queryString}`,
+    ];
+
+    let response = null;
+    const triedStatuses = [];
+    for (const url of candidateUrls) {
+      const candidateResponse = await apiCall(url, { method: "GET" });
+      if (!candidateResponse) continue;
+      triedStatuses.push(`${url} -> ${candidateResponse.status}`);
+      if (candidateResponse.status !== 404) {
+        response = candidateResponse;
+        break;
+      }
+    }
+
+    if (!response) {
+      alert(
+        "Report endpoint not reachable. Please restart backend server and try again.",
+      );
+      console.error("All report endpoints unreachable.", triedStatuses);
+      return;
+    }
+
+    if (!response.ok) {
+      let message = `Report download failed (${response.status})`;
+      try {
+        const errData = await response.json();
+        if (errData?.message) message = errData.message;
+      } catch (_err) {
+        // Ignore JSON parsing error and keep fallback message.
+      }
+      alert(message);
+      return;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const errData = await response.json();
+      alert(errData?.message || "Report generation failed.");
+      return;
+    }
+
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      alert("Generated file is empty. Please check selected date range.");
+      return;
+    }
+
+    const ext = format === "excel" ? "xlsx" : "pdf";
+    const downloadName = `attendance_report_${startDate}_to_${endDate}.${ext}`;
+
+    const objectUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = downloadName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => window.URL.revokeObjectURL(objectUrl), 3000);
+  } catch (err) {
+    console.error("Error generating report:", err);
+    alert("Unable to generate report right now.");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = "Download Report";
+    }
+  }
+}
+
+function ensureReportFormatOptions() {
+  let select = document.getElementById("reportFormat");
+  if (!select) {
+    const reportsSection = document.getElementById("reports");
+    const endDateInput = document.getElementById("reportEndDate");
+    if (reportsSection && endDateInput && endDateInput.parentElement) {
+      select = document.createElement("select");
+      select.id = "reportFormat";
+      select.className = "form-select w-25";
+      endDateInput.parentElement.insertBefore(select, endDateInput.nextSibling);
+    } else {
+      return;
+    }
+  }
+
+  const existingValues = Array.from(select.options).map((option) => option.value);
+  if (!existingValues.includes("pdf")) {
+    const pdfOption = document.createElement("option");
+    pdfOption.value = "pdf";
+    pdfOption.textContent = "PDF";
+    select.appendChild(pdfOption);
+  }
+  if (!existingValues.includes("excel")) {
+    const excelOption = document.createElement("option");
+    excelOption.value = "excel";
+    excelOption.textContent = "Excel";
+    select.appendChild(excelOption);
+  }
+}
+
+// ============================================
+// ADD USER
+// ============================================
+
+function resetAddUserForm() {
+  const form = document.getElementById("addUserForm");
+  if (form) form.reset();
+  updateRoleSpecificFields();
+}
+
+function closeAddUserModal() {
+  const modalEl = document.getElementById("addUserModal");
+  if (!modalEl || typeof bootstrap === "undefined") return;
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
+}
+
+async function submitAddUserForm(event) {
+  event.preventDefault();
+
+  const nameEl = document.getElementById("newName");
+  const emailEl = document.getElementById("newEmail");
+  const passwordEl = document.getElementById("newPassword");
+  const roleEl = document.getElementById("newRole");
+  const rollNoEl = document.getElementById("newRollNo");
+  const departmentEl = document.getElementById("newDepartment");
+  const employeeIdEl = document.getElementById("newEmployeeId");
+  const qualificationEl = document.getElementById("newQualification");
+
+  const full_name = nameEl?.value.trim();
+  const email = emailEl?.value.trim();
+  const password = passwordEl?.value || "";
+  const role = roleEl?.value;
+  const registration_no = rollNoEl?.value.trim();
+  const department_id = departmentEl?.value;
+  const employee_id = employeeIdEl?.value.trim();
+  const qualification = qualificationEl?.value.trim();
+
+  if (!full_name || !email || !password || !role) {
+    alert("Please fill all required fields.");
+    return;
+  }
+
+  if (role === "Student" && !registration_no) {
+    alert("Roll No is required for Student.");
+    return;
+  }
+
+  if (role === "Student" && !department_id) {
+    alert("Department is required for Student.");
+    return;
+  }
+
+  if (role === "Teacher" && !employee_id) {
+    alert("Employee ID is required for Teacher.");
+    return;
+  }
+
+  const submitBtn = document.querySelector(
+    "#addUserForm button[type='submit']",
+  );
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  }
+
+  try {
+    const response = await apiCall("/admin_add_user", {
+      method: "POST",
+      body: JSON.stringify({
+        full_name,
+        email,
+        password,
+        role,
+        registration_no: role === "Student" ? registration_no : "",
+        department_id: role === "Student" ? department_id : "",
+        employee_id: role === "Teacher" ? employee_id : "",
+        qualification: role === "Teacher" ? qualification : "",
+      }),
+    });
+
+    if (!response) return;
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      const rawText = await response.text();
+      throw new Error(
+        `Server returned non-JSON response (${response.status}). ${rawText?.slice(0, 120) || ""}`,
+      );
+    }
+
+    if (!response.ok) {
+      const serverMessage =
+        data?.message || `Request failed with status ${response.status}`;
+      if (typeof Swal !== "undefined") {
+        Swal.fire({
+          title: "Error",
+          text: serverMessage,
+          icon: "error",
+          confirmButtonColor: "#e74c3c",
+        });
+      } else {
+        alert(serverMessage);
+      }
+      return;
+    }
+
+    if (data.status === "success") {
+      if (typeof Swal !== "undefined") {
+        Swal.fire({
+          title: "User Added",
+          text: `${role} account created successfully.`,
+          icon: "success",
+          confirmButtonColor: "#27ae60",
+        });
+      } else {
+        alert(`${role} account created successfully.`);
+      }
+
+      closeAddUserModal();
+      resetAddUserForm();
+      loadStats();
+      if (role === "Student") loadStudents();
+      if (role === "Teacher") loadTeachers();
+    } else if (typeof Swal !== "undefined") {
+      Swal.fire({
+        title: "Error",
+        text: data.message || "Unable to add user.",
+        icon: "error",
+        confirmButtonColor: "#e74c3c",
+      });
+    } else {
+      alert(data.message || "Unable to add user.");
+    }
+  } catch (err) {
+    console.error("Add user error:", err);
+    alert(
+      err?.message ||
+        "Unable to add user right now. Please check backend server logs.",
+    );
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = "REGISTER";
+    }
+  }
+}
+
+async function loadDepartments() {
+  const departmentEl = document.getElementById("newDepartment");
+  if (!departmentEl) return;
+
+  try {
+    const response = await apiCall("/admin_departments");
+    if (!response) return;
+    const data = await response.json();
+    if (data.status !== "success" || !Array.isArray(data.departments)) return;
+
+    departmentEl.innerHTML = '<option value="">Select department</option>';
+    data.departments.forEach((dept) => {
+      const option = document.createElement("option");
+      option.value = String(dept.dept_id);
+      option.textContent = `${dept.dept_name} (${dept.dept_code})`;
+      departmentEl.appendChild(option);
+    });
+  } catch (err) {
+    console.error("Error loading departments:", err);
+  }
+}
+
+function updateRoleSpecificFields() {
+  const roleEl = document.getElementById("newRole");
+  const rollGroup = document.getElementById("studentRollGroup");
+  const departmentGroup = document.getElementById("studentDepartmentGroup");
+  const employeeGroup = document.getElementById("teacherEmployeeGroup");
+  const qualificationGroup = document.getElementById("teacherQualificationGroup");
+  const rollNoEl = document.getElementById("newRollNo");
+  const departmentEl = document.getElementById("newDepartment");
+  const employeeIdEl = document.getElementById("newEmployeeId");
+
+  if (!roleEl) return;
+  const selectedRole = roleEl.value;
+
+  if (selectedRole === "Teacher") {
+    if (rollGroup) rollGroup.classList.add("d-none");
+    if (departmentGroup) departmentGroup.classList.add("d-none");
+    if (employeeGroup) employeeGroup.classList.remove("d-none");
+    if (qualificationGroup) qualificationGroup.classList.remove("d-none");
+    if (rollNoEl) {
+      rollNoEl.required = false;
+      rollNoEl.value = "";
+    }
+    if (departmentEl) {
+      departmentEl.required = false;
+      departmentEl.value = "";
+    }
+    if (employeeIdEl) employeeIdEl.required = true;
+  } else {
+    if (rollGroup) rollGroup.classList.remove("d-none");
+    if (departmentGroup) departmentGroup.classList.remove("d-none");
+    if (employeeGroup) employeeGroup.classList.add("d-none");
+    if (qualificationGroup) qualificationGroup.classList.add("d-none");
+    if (rollNoEl) rollNoEl.required = true;
+    if (departmentEl) departmentEl.required = true;
+    if (employeeIdEl) {
+      employeeIdEl.required = false;
+      employeeIdEl.value = "";
+    }
+  }
+}
+
+function initAddUserForm() {
+  const form = document.getElementById("addUserForm");
+  const roleEl = document.getElementById("newRole");
+  if (!form) return;
+  form.addEventListener("submit", submitAddUserForm);
+  if (roleEl) {
+    roleEl.addEventListener("change", updateRoleSpecificFields);
+  }
+  loadDepartments();
+  updateRoleSpecificFields();
 }
 
 // ============================================
@@ -345,3 +704,5 @@ async function loadAttendanceTrendChart() {
 
 loadStats();
 loadAttendanceTrendChart();
+initAddUserForm();
+ensureReportFormatOptions();

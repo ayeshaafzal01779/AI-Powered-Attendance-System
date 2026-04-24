@@ -128,4 +128,12 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- ---------- data consistency: backfill student dept_id from program
+UPDATE users u
+JOIN programs p ON p.program_id = u.program_id
+SET u.dept_id = p.dept_id
+WHERE u.role = 'Student'
+  AND u.program_id IS NOT NULL
+  AND (u.dept_id IS NULL OR u.dept_id <> p.dept_id);
+
 SELECT 'Hardening completed successfully' AS status;
