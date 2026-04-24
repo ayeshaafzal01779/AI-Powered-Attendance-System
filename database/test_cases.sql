@@ -10,13 +10,14 @@ USE TriAttendanceDB;
 -- 1) ADDITIONAL TEST STUDENTS (BS-CS, BS-IT, BS-SE)
 -- Password: 'password' (bcrypt hash)
 -- ---------------------------------------------------------
-INSERT INTO users (email, password, role, full_name, phone, registration_no, program_id, current_sem_id)
+INSERT INTO users (email, password, role, full_name, phone, dept_id, registration_no, program_id, current_sem_id)
 SELECT
     'zain.cs@student.com',
     '$2b$12$STtHVc6e7M4.T/OsHZZ3qu.cEF7bbkp0Y/Wq7qkItRrQtRqprHSXy',
     'Student',
     'Zain Ahmed Khan',
     '03002222001',
+    p.dept_id,
     '2024-CS-003',
     p.program_id,
     s.sem_id
@@ -25,13 +26,14 @@ JOIN semesters s ON s.program_id = p.program_id AND s.is_active = TRUE
 WHERE p.program_code = 'BS-CS'
   AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'zain.cs@student.com');
 
-INSERT INTO users (email, password, role, full_name, phone, registration_no, program_id, current_sem_id)
+INSERT INTO users (email, password, role, full_name, phone, dept_id, registration_no, program_id, current_sem_id)
 SELECT
     'fatima.it@student.com',
     '$2b$12$STtHVc6e7M4.T/OsHZZ3qu.cEF7bbkp0Y/Wq7qkItRrQtRqprHSXy',
     'Student',
     'Fatima Hassan Khan',
     '03002222002',
+    p.dept_id,
     '2024-IT-002',
     p.program_id,
     s.sem_id
@@ -40,13 +42,14 @@ JOIN semesters s ON s.program_id = p.program_id AND s.is_active = TRUE
 WHERE p.program_code = 'BS-IT'
   AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'fatima.it@student.com');
 
-INSERT INTO users (email, password, role, full_name, phone, registration_no, program_id, current_sem_id)
+INSERT INTO users (email, password, role, full_name, phone, dept_id, registration_no, program_id, current_sem_id)
 SELECT
     'sara.cs@student.com',
     '$2b$12$STtHVc6e7M4.T/OsHZZ3qu.cEF7bbkp0Y/Wq7qkItRrQtRqprHSXy',
     'Student',
     'Sara Ali Malik',
     '03002222003',
+    p.dept_id,
     '2024-CS-004',
     p.program_id,
     s.sem_id
@@ -55,14 +58,15 @@ JOIN semesters s ON s.program_id = p.program_id AND s.is_active = TRUE
 WHERE p.program_code = 'BS-CS'
   AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'sara.cs@student.com');
 
-INSERT INTO users (email, password, role, full_name, phone, registration_no, program_id, current_sem_id)
+INSERT INTO users (email, password, role, full_name, phone, dept_id, registration_no, program_id, current_sem_id)
 SELECT
     'hassan.se@student.com',
     '$2b$12$STtHVc6e7M4.T/OsHZZ3qu.cEF7bbkp0Y/Wq7qkItRrQtRqprHSXy',
     'Student',
     'Hassan Raza Malik',
     '03002222004',
-    '2024-SE-001',
+    p.dept_id,
+    '2024-SE-002',
     p.program_id,
     s.sem_id
 FROM programs p

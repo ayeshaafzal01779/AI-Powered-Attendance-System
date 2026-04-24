@@ -12,7 +12,7 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
-    <link rel="stylesheet" href="static/css/admin-dashboard.css" />
+    <link rel="stylesheet" href="/static/css/admin-dashboard.css?v=20260424c" />
   </head>
   <body>
     <div class="sidebar shadow">
@@ -114,12 +114,13 @@
                 <th>Roll No</th>
                 <th>Student Name</th>
                 <th>Email</th>
+                <th>Department</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody id="studentsTableBody">
               <tr>
-                <td colspan="4" class="text-center">Loading...</td>
+                <td colspan="5" class="text-center">Loading...</td>
               </tr>
             </tbody>
           </table>
@@ -155,8 +156,12 @@
           <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
             <input type="date" id="reportStartDate" class="form-control w-25" />
             <input type="date" id="reportEndDate" class="form-control w-25" />
+            <select id="reportFormat" class="form-select w-25">
+              <option value="pdf">PDF</option>
+              <option value="excel">Excel</option>
+            </select>
             <button class="btn btn-danger" onclick="generateReport()">
-              Download PDF
+              Download Report
             </button>
           </div>
         </div>
@@ -243,10 +248,43 @@
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Role</label
-                ><select class="form-select" id="newRole">
-                  <option>Student</option>
-                  <option>Teacher</option>
+                ><select class="form-select" id="newRole" required>
+                  <option value="Student">Student</option>
+                  <option value="Teacher">Teacher</option>
                 </select>
+              </div>
+              <div class="mb-3" id="studentRollGroup">
+                <label class="form-label fw-bold">Roll No</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="newRollNo"
+                  placeholder="Enter student roll number"
+                />
+              </div>
+              <div class="mb-3" id="studentDepartmentGroup">
+                <label class="form-label fw-bold">Department</label>
+                <select class="form-select" id="newDepartment">
+                  <option value="">Select department</option>
+                </select>
+              </div>
+              <div class="mb-3 d-none" id="teacherEmployeeGroup">
+                <label class="form-label fw-bold">Employee ID</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="newEmployeeId"
+                  placeholder="Enter teacher employee id"
+                />
+              </div>
+              <div class="mb-3 d-none" id="teacherQualificationGroup">
+                <label class="form-label fw-bold">Qualification</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="newQualification"
+                  placeholder="e.g. MS CS / PhD AI"
+                />
               </div>
               <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
                 REGISTER
@@ -259,7 +297,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="static/js/admin-dashboard.js"></script>
+    <script src="/static/js/admin-dashboard.js?v=20260424d"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </body>
 </html>

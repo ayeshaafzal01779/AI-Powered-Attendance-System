@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, session
+from flask import Flask, request, jsonify, render_template, session, send_file
 from flask_cors import CORS
 from datetime import datetime, date
 import qrcode
@@ -60,6 +60,14 @@ CORS(
     supports_credentials=True,
     origins=[origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
 )
+
+@app.after_request
+def add_no_cache_headers(response):
+    # Prevent stale dashboard HTML/JS from being served by browser cache.
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # Required for session
 app.secret_key = require_env("FLASK_SECRET_KEY")
@@ -510,8 +518,10 @@ def admin_students():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-        SELECT user_id, full_name, email, registration_no, phone
-        FROM users WHERE role = 'Student'
+        SELECT u.user_id, u.full_name, u.email, u.registration_no, u.phone, d.dept_name
+        FROM users u
+        LEFT JOIN departments d ON u.dept_id = d.dept_id
+        WHERE u.role = 'Student'
     """)
     students = cursor.fetchall()
     cursor.close()
@@ -531,6 +541,314 @@ def admin_teachers():
     cursor.close()
     conn.close()
     return jsonify({'status': 'success', 'teachers': teachers})
+
+@app.route('/admin_departments', methods=['GET'])
+@role_required(['Admin'])
+def admin_departments():
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT dept_id, dept_code, dept_name
+        FROM departments
+        ORDER BY dept_name ASC
+    """)
+    departments = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "departments": departments})
+
+def fetch_report_rows(start_date, end_date):
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT
+            s.session_date,
+            c.course_code,
+            c.course_name,
+            sec.section_code,
+            t.full_name AS teacher_name,
+            st.full_name AS student_name,
+            st.registration_no,
+            st.email AS student_email,
+            ar.status,
+            ar.mode,
+            ar.marked_at
+        FROM attendance_records ar
+        JOIN attendance_sessions s ON ar.session_id = s.session_id
+        JOIN sections sec ON ar.section_id = sec.section_id
+        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+        JOIN courses c ON cs.course_id = c.course_id
+        JOIN users st ON ar.student_id = st.user_id
+        JOIN users t ON s.teacher_id = t.user_id
+        WHERE s.session_date BETWEEN %s AND %s
+        ORDER BY s.session_date ASC, c.course_code ASC, sec.section_code ASC, st.full_name ASC
+    """, (start_date, end_date))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+def build_excel_report(rows, start_date_str, end_date_str):
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+    except Exception:
+        return jsonify({"status": "error", "message": "Excel report dependency missing. Run: pip install -r requirements.txt"}), 500
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance Report"
+
+    headers = [
+        "Session Date", "Course Code", "Course Name", "Section", "Teacher",
+        "Student", "Roll No", "Student Email", "Status", "Mode", "Marked At"
+    ]
+    ws.append(headers)
+
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+
+    for row in rows:
+        ws.append([
+            row["session_date"].strftime("%Y-%m-%d") if row.get("session_date") else "",
+            row.get("course_code", ""),
+            row.get("course_name", ""),
+            row.get("section_code", ""),
+            row.get("teacher_name", ""),
+            row.get("student_name", ""),
+            row.get("registration_no", ""),
+            row.get("student_email", ""),
+            row.get("status", ""),
+            row.get("mode", ""),
+            row["marked_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("marked_at") else ""
+        ])
+
+    for column_cells in ws.columns:
+        max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
+        ws.column_dimensions[column_cells[0].column_letter].width = min(max_length + 2, 40)
+
+    report_stream = io.BytesIO()
+    wb.save(report_stream)
+    report_stream.seek(0)
+    filename = f"attendance_report_{start_date_str}_to_{end_date_str}.xlsx"
+
+    return send_file(
+        report_stream,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+def build_pdf_report(rows, start_date_str, end_date_str):
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except Exception:
+        return jsonify({"status": "error", "message": "PDF report dependency missing. Run: pip install -r requirements.txt"}), 500
+
+    report_stream = io.BytesIO()
+    doc = SimpleDocTemplate(report_stream, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
+    styles = getSampleStyleSheet()
+    elements = [
+        Paragraph("Attendance Report", styles["Title"]),
+        Paragraph(f"Date Range: {start_date_str} to {end_date_str}", styles["Normal"]),
+        Spacer(1, 10),
+    ]
+
+    table_data = [[
+        "Date", "Course", "Section", "Teacher", "Student", "Roll No", "Status", "Mode", "Marked At"
+    ]]
+    for row in rows:
+        table_data.append([
+            row["session_date"].strftime("%Y-%m-%d") if row.get("session_date") else "",
+            f'{row.get("course_code", "")} - {row.get("course_name", "")}',
+            row.get("section_code", ""),
+            row.get("teacher_name", ""),
+            row.get("student_name", ""),
+            row.get("registration_no", ""),
+            row.get("status", ""),
+            row.get("mode", ""),
+            row["marked_at"].strftime("%Y-%m-%d %H:%M") if row.get("marked_at") else "",
+        ])
+
+    report_table = Table(table_data, repeatRows=1)
+    report_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7F9FC")]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    elements.append(report_table)
+
+    doc.build(elements)
+    report_stream.seek(0)
+    filename = f"attendance_report_{start_date_str}_to_{end_date_str}.pdf"
+    return send_file(report_stream, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+def _handle_admin_reports_download():
+    start_date_str = request.args.get('start_date', '').strip()
+    end_date_str = request.args.get('end_date', '').strip()
+    format_type = request.args.get('format', 'pdf').strip().lower()
+
+    if not start_date_str or not end_date_str:
+        return jsonify({"status": "error", "message": "Start date and end date are required"}), 400
+
+    if format_type not in ['pdf', 'excel']:
+        return jsonify({"status": "error", "message": "Invalid format. Allowed: pdf, excel"}), 400
+
+    try:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+    if start_date > end_date:
+        return jsonify({"status": "error", "message": "Start date cannot be after end date"}), 400
+
+    rows = fetch_report_rows(start_date, end_date)
+    if rows is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    if format_type == 'excel':
+        return build_excel_report(rows, start_date_str, end_date_str)
+    return build_pdf_report(rows, start_date_str, end_date_str)
+
+@app.route('/admin_reports_download', methods=['GET'])
+@role_required(['Admin'])
+def admin_reports_download():
+    return _handle_admin_reports_download()
+
+# Backward-compatible alias for older frontend builds.
+@app.route('/generate_report', methods=['GET'])
+@role_required(['Admin'])
+def generate_report_legacy():
+    return _handle_admin_reports_download()
+
+@app.route('/admin_report_download', methods=['GET'])
+@role_required(['Admin'])
+def admin_report_download_alias():
+    return _handle_admin_reports_download()
+
+@app.route('/download_report', methods=['GET'])
+@role_required(['Admin'])
+def download_report_alias():
+    return _handle_admin_reports_download()
+
+@app.route('/admin_add_user', methods=['POST'])
+@role_required(['Admin'])
+def admin_add_user():
+    data = request.get_json() or {}
+
+    full_name = (data.get('full_name') or "").strip()
+    email = (data.get('email') or "").strip().lower()
+    password = data.get('password') or ""
+    role = (data.get('role') or "").strip()
+    phone = (data.get('phone') or "").strip() or None
+    department_id = data.get('department_id')
+
+    if not full_name or not email or not password or not role:
+        return jsonify({"status": "error", "message": "Full name, email, password and role are required"}), 400
+
+    if role not in ['Student', 'Teacher']:
+        return jsonify({"status": "error", "message": "Invalid role. Allowed roles: Student, Teacher"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+
+    if role == 'Student':
+        if department_id in [None, ""]:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Department is required for Student"}), 400
+        try:
+            department_id = int(department_id)
+        except (TypeError, ValueError):
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid department"}), 400
+
+        cursor.execute("SELECT dept_id FROM departments WHERE dept_id = %s LIMIT 1", (department_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Selected department does not exist"}), 400
+
+    cursor.execute("SELECT user_id FROM users WHERE email = %s LIMIT 1", (email,))
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Email already exists"}), 400
+
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    try:
+        if role == 'Student':
+            registration_no = (data.get('registration_no') or "").strip()
+            if not registration_no:
+                registration_no = f"STD-{datetime.now().year}-{uuid.uuid4().hex[:6].upper()}"
+
+            cursor.execute("""
+                INSERT INTO users (email, password, role, full_name, phone, registration_no, dept_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (email, hashed_password, role, full_name, phone, registration_no, department_id))
+
+            created_detail = {"registration_no": registration_no, "employee_id": None}
+        else:
+            employee_id = (data.get('employee_id') or "").strip()
+            qualification = (data.get('qualification') or "").strip() or None
+            if not employee_id:
+                employee_id = f"TCH-{datetime.now().year}-{uuid.uuid4().hex[:6].upper()}"
+
+            cursor.execute("""
+                INSERT INTO users (email, password, role, full_name, phone, employee_id, qualification)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (email, hashed_password, role, full_name, phone, employee_id, qualification))
+
+            created_detail = {"registration_no": None, "employee_id": employee_id}
+
+        conn.commit()
+        user_id = cursor.lastrowid
+    except Exception as exc:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        if "Duplicate entry" in str(exc):
+            return jsonify({"status": "error", "message": "User details already exist (duplicate unique field)"}), 400
+        return jsonify({"status": "error", "message": "Failed to create user"}), 500
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "status": "success",
+        "message": f"{role} added successfully",
+        "user": {
+            "user_id": user_id,
+            "full_name": full_name,
+            "email": email,
+            "role": role,
+            "registration_no": created_detail["registration_no"],
+            "employee_id": created_detail["employee_id"]
+        }
+    })
 
 # ============================================
 # TEACHER APIs
