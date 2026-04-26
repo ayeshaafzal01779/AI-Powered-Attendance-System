@@ -19,6 +19,7 @@ if (!user || !userId || userRole !== "Student") {
 let attendanceChart = null;
 let html5QrCode = null;
 let isScanning = false;
+let messageTimer = null;
 
 // Display student name
 document.getElementById("userName").textContent = user.name;
@@ -66,23 +67,18 @@ function showMessage(text, type) {
   if (!msgDiv) {
     msgDiv = document.createElement("div");
     msgDiv.id = "message";
-    msgDiv.className = "message";
-    const scanSection = document.querySelector(".scan-section");
-    if (scanSection) {
-      scanSection.appendChild(msgDiv);
-    } else {
-      const container = document.querySelector(".container");
-      if (container) container.insertBefore(msgDiv, container.firstChild);
-    }
+    msgDiv.className = "message toast-message";
+    document.body.appendChild(msgDiv);
   }
 
+  if (messageTimer) clearTimeout(messageTimer);
   msgDiv.textContent = text;
-  msgDiv.className = `message ${type}`;
+  msgDiv.className = `message toast-message ${type} show`;
 
-  setTimeout(() => {
-    msgDiv.className = "message";
+  messageTimer = setTimeout(() => {
+    msgDiv.className = "message toast-message";
     msgDiv.textContent = "";
-  }, 3000);
+  }, 4500);
 }
 
 // ============================================

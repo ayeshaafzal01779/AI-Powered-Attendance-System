@@ -21,6 +21,64 @@ let refreshInterval = null;
 let qrRefreshInterval = null;
 let countdownInterval = null;
 let isQRCodeActive = false;
+let teacherToastTimer = null;
+let previousPresentStudentIds = new Set();
+let manualRosterCache = [];
+let selectedManualStudentIds = new Set();
+
+const pkTimeFmt = new Intl.DateTimeFormat('en-PK', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+});
+
+function methodLabel(mode) {
+    const m = (mode || '').toString().toLowerCase();
+    if (!m) return '--';
+    if (m === 'qr') return 'QR Scan';
+    if (m === 'teacher') return 'Teacher Marked';
+    if (m === 'student') return 'Student Self';
+    // Backward compatibility for older data.
+    if (m === 'manual') return 'Teacher Marked';
+    return mode;
+}
+
+function formatPkTime(value) {
+    if (!value) return '--:--';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '--:--';
+    return pkTimeFmt.format(d);
+}
+
+function syncManualSelectAllCheckbox() {
+    const selAll = document.getElementById('manualSelectAll');
+    if (!selAll) return;
+    const checks = document.querySelectorAll('#manualTableBody .manual-row-check');
+    if (checks.length === 0) {
+        selAll.checked = false;
+        return;
+    }
+    selAll.checked = Array.from(checks).every(c => c.checked);
+}
+
+function showTeacherToast(text, type = 'info') {
+    let toast = document.getElementById('teacherToast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'teacherToast';
+        toast.className = 'teacher-toast';
+        document.body.appendChild(toast);
+    }
+
+    if (teacherToastTimer) clearTimeout(teacherToastTimer);
+    toast.textContent = text;
+    toast.className = `teacher-toast show ${type}`;
+    teacherToastTimer = setTimeout(() => {
+        toast.className = 'teacher-toast';
+    }, 4500);
+}
 
 function updateActiveSessionIdDisplay() {
     const sessionIdEl = document.getElementById('activeSessionId');
@@ -211,6 +269,9 @@ function selectMode(mode, button) {
     if (qrSection) qrSection.classList.add('hidden');
     if (faceSection) faceSection.classList.add('hidden');
     if (manualSection) manualSection.classList.add('hidden');
+
+    // Face feature is "coming soon", but keep this safe when toggling modes.
+    stopFaceRecognition();
     
     if (mode === 'QR') {
         if (qrSection) qrSection.classList.remove('hidden');
@@ -251,10 +312,22 @@ function selectMode(mode, button) {
         countdownInterval = null;
         
     } else if (mode === 'Face') {
+        // Face Recognition is intentionally disabled in UI (coming soon).
         if (faceSection) faceSection.classList.remove('hidden');
     } else if (mode === 'Manual') {
         if (manualSection) manualSection.classList.remove('hidden');
+        loadManualRoster();
     }
+}
+
+// Placeholder hook for future face recognition camera usage.
+function stopFaceRecognition() {
+    const video = document.getElementById('faceVideo');
+    const stream = video?.srcObject;
+    if (stream && typeof stream.getTracks === 'function') {
+        stream.getTracks().forEach(t => t.stop());
+    }
+    if (video) video.srcObject = null;
 }
 
 // ============================================
@@ -482,13 +555,22 @@ async function loadAttendanceList() {
             
             let presentCount = 0;
             let serialNo = 1;
+            const currentPresentStudentIds = new Set();
+            const newlyMarkedNames = [];
             
             data.attendance.forEach(record => {
                 const row = tbody.insertRow();
-                const statusText = record.status === 'present' ? 'Present' : 'Absent';
-                const statusClass = record.status === 'present' ? 'status-present' : 'status-absent';
-                const timeText = record.marked_at ? new Date(record.marked_at).toLocaleTimeString() : '--:--';
-                const modeText = record.mode || '--';
+                const statusText =
+                    record.status === 'present' ? 'Present' :
+                    record.status === 'not_marked' ? 'Not Marked' :
+                    'Absent';
+                const statusClass =
+                    record.status === 'present' ? 'status-present' :
+                    record.status === 'not_marked' ? 'status-pending' :
+                    'status-absent';
+
+                const timeText = formatPkTime(record.marked_at);
+                const modeText = methodLabel(record.mode);
                 
                 row.innerHTML = `
                     <td style="width: 50px;">${serialNo++}</td>
@@ -498,7 +580,13 @@ async function loadAttendanceList() {
                     <td>${modeText}</td>
                     <td><span class="${statusClass}">${statusText}</span></td>
                 `;
-                if (record.status === 'present') presentCount++;
+                if (record.status === 'present') {
+                    presentCount++;
+                    currentPresentStudentIds.add(record.user_id);
+                    if (!previousPresentStudentIds.has(record.user_id)) {
+                        newlyMarkedNames.push(record.student_name);
+                    }
+                }
             });
             
             const presentCountSpan = document.getElementById('presentCount');
@@ -506,9 +594,197 @@ async function loadAttendanceList() {
             
             if (presentCountSpan) presentCountSpan.textContent = presentCount;
             if (totalStudentsSpan) totalStudentsSpan.textContent = data.attendance.length;
+
+            if (previousPresentStudentIds.size > 0 && newlyMarkedNames.length > 0) {
+                const joinedNames = newlyMarkedNames.slice(0, 2).join(', ');
+                const suffix = newlyMarkedNames.length > 2 ? ` +${newlyMarkedNames.length - 2} more` : '';
+                showTeacherToast(`Attendance marked: ${joinedNames}${suffix}`, 'success');
+            }
+            previousPresentStudentIds = currentPresentStudentIds;
+
+            // Keep manual roster in sync if visible.
+            const manualSection = document.getElementById('manualSection');
+            if (manualSection && !manualSection.classList.contains('hidden')) {
+                manualRosterCache = data.attendance || [];
+                renderManualRoster();
+            }
         }
     } catch (err) {
         console.error('Error loading attendance:', err);
+    }
+}
+
+// ============================================
+// MANUAL ENTRY (TEACHER MARKING)
+// ============================================
+
+async function loadManualRoster() {
+    if (!currentSessionId) {
+        renderManualRosterPlaceholder('Start a session to use manual entry');
+        return;
+    }
+    try {
+        const response = await apiCall(`/attendance_list?session_id=${currentSessionId}`);
+        if (!response) return;
+        const data = await response.json();
+        if (data.status !== 'success') {
+            renderManualRosterPlaceholder('Unable to load students');
+            return;
+        }
+        manualRosterCache = data.attendance || [];
+        renderManualRoster();
+    } catch (err) {
+        console.error('Error loading manual roster:', err);
+        renderManualRosterPlaceholder('Unable to load students');
+    }
+}
+
+function renderManualRosterPlaceholder(text) {
+    const tbody = document.getElementById('manualTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center">${text}</td></tr>`;
+}
+
+function getManualSearchTerm() {
+    return (document.getElementById('manualSearch')?.value || '').trim().toLowerCase();
+}
+
+function renderManualRoster() {
+    const tbody = document.getElementById('manualTableBody');
+    if (!tbody) return;
+
+    const term = getManualSearchTerm();
+    const filtered = manualRosterCache.filter(r => {
+        if (!term) return true;
+        const name = (r.student_name || '').toLowerCase();
+        const roll = (r.registration_no || '').toLowerCase();
+        return name.includes(term) || roll.includes(term);
+    });
+
+    tbody.innerHTML = '';
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center">No students match your search</td></tr>`;
+        return;
+    }
+
+    filtered.forEach(r => {
+        const statusText =
+            r.status === 'present' ? 'Present' :
+            r.status === 'not_marked' ? 'Not Marked' :
+            'Absent';
+        const statusClass =
+            r.status === 'present' ? 'status-present' :
+            r.status === 'not_marked' ? 'status-pending' :
+            'status-absent';
+        const timeText = r.marked_at ? formatPkTime(r.marked_at) : '--:--';
+        const modeText = methodLabel(r.mode);
+        const row = document.createElement('tr');
+        const checkedAttr = selectedManualStudentIds.has(Number(r.user_id)) ? 'checked' : '';
+        row.innerHTML = `
+            <td><input type="checkbox" class="manual-row-check" data-student-id="${r.user_id}" ${checkedAttr}></td>
+            <td><strong>${r.student_name}</strong></td>
+            <td>${r.registration_no || '-'}</td>
+            <td><span class="${statusClass}">${statusText}</span></td>
+            <td>${timeText}</td>
+            <td>${modeText}</td>
+        `;
+        tbody.appendChild(row);
+    });
+    syncManualSelectAllCheckbox();
+}
+
+function filterManualRoster() {
+    renderManualRoster();
+}
+
+function toggleSelectAllManual(checked) {
+    const checks = document.querySelectorAll('#manualTableBody .manual-row-check');
+    checks.forEach(c => {
+        c.checked = checked;
+        const id = Number(c.getAttribute('data-student-id'));
+        if (!Number.isFinite(id)) return;
+        if (checked) selectedManualStudentIds.add(id);
+        else selectedManualStudentIds.delete(id);
+    });
+    syncManualSelectAllCheckbox();
+}
+
+function getSelectedManualStudentIds() {
+    return Array.from(selectedManualStudentIds.values());
+}
+
+async function markSelectedAttendance(status) {
+    if (!currentSessionId) {
+        alert('Please start a session first');
+        return;
+    }
+    const selectedIds = getSelectedManualStudentIds();
+    if (selectedIds.length === 0) {
+        alert('Select at least one student');
+        return;
+    }
+
+    const confirmText = status === 'Absent'
+        ? `Mark ${selectedIds.length} selected student(s) Absent?`
+        : `Mark ${selectedIds.length} selected student(s) Present?`;
+    if (!confirm(confirmText)) return;
+
+    try {
+        const response = await apiCall('/teacher_mark_attendance', {
+            method: 'POST',
+            body: JSON.stringify({
+                session_id: currentSessionId,
+                student_ids: selectedIds,
+                status
+            })
+        });
+        if (!response) return;
+        const data = await response.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'Unable to update attendance');
+            return;
+        }
+        showTeacherToast(`Updated ${selectedIds.length} student(s)`, 'success');
+        selectedManualStudentIds.clear();
+        const selAll = document.getElementById('manualSelectAll');
+        if (selAll) selAll.checked = false;
+        await loadAttendanceList();
+        await loadManualRoster();
+    } catch (err) {
+        console.error('Teacher mark attendance error:', err);
+        alert('Unable to update attendance');
+    }
+}
+
+async function downloadSessionSheet() {
+    if (!currentSessionId) {
+        alert('Start a session first');
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/teacher_session_report?session_id=${currentSessionId}&format=excel`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => null);
+            alert(err?.message || 'Unable to download sheet');
+            return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const disposition = response.headers.get('content-disposition') || '';
+        const match = disposition.match(/filename="?([^"]+)"?/i);
+        a.download = match?.[1] || `attendance_session_${currentSessionId}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('Download sheet error:', err);
+        alert('Unable to download sheet');
     }
 }
 
@@ -528,6 +804,7 @@ async function closeSession() {
         });
         
         currentSessionId = null;
+        previousPresentStudentIds = new Set();
         updateActiveSessionIdDisplay();
         isQRCodeActive = false;
         
@@ -541,12 +818,21 @@ async function closeSession() {
         const activeSession = document.getElementById('activeSession');
         const modeSelector = document.getElementById('modeSelector');
         const qrSection = document.getElementById('qrSection');
+        const faceSection = document.getElementById('faceSection');
+        const manualSection = document.getElementById('manualSection');
         const attendanceList = document.getElementById('attendanceList');
         
         if (activeSession) activeSession.classList.add('hidden');
         if (modeSelector) modeSelector.classList.add('hidden');
         if (qrSection) qrSection.classList.add('hidden');
+        if (faceSection) faceSection.classList.add('hidden');
+        if (manualSection) manualSection.classList.add('hidden');
         if (attendanceList) attendanceList.classList.add('hidden');
+
+        stopFaceRecognition();
+        manualRosterCache = [];
+        selectedManualStudentIds.clear();
+        renderManualRosterPlaceholder('Start a session to use manual entry');
         
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const qrImg = document.getElementById('qrImg');
@@ -599,5 +885,17 @@ async function logout() {
 // ============================================
 // INITIALIZE
 // ============================================
+
+// Persist manual checkbox selections across auto-refresh re-renders.
+document.addEventListener('change', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    if (!el.classList.contains('manual-row-check')) return;
+    const id = Number(el.getAttribute('data-student-id'));
+    if (!Number.isFinite(id)) return;
+    if (el.checked) selectedManualStudentIds.add(id);
+    else selectedManualStudentIds.delete(id);
+    syncManualSelectAllCheckbox();
+});
 
 loadCourses();

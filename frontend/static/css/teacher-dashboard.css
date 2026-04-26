@@ -270,6 +270,23 @@ body {
     transform: translateY(-2px);
 }
 
+.mode-btn.mode-btn-disabled,
+.mode-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #64748b;
+    transform: none;
+    box-shadow: none;
+}
+
+.mode-btn.mode-btn-disabled:hover {
+    transform: none;
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+
 /* QR Section */
 .qr-section {
     margin-bottom: 30px;
@@ -484,6 +501,183 @@ body {
     font-size: 12px;
 }
 
+/* Manual Entry */
+.manual-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px 22px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.manual-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.manual-header h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: 600;
+    border-left: 4px solid #2980b9;
+    padding-left: 15px;
+}
+
+.manual-header h3 i {
+    color: #2980b9;
+    margin-right: 10px;
+}
+
+.manual-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.manual-btn {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease;
+    color: #fff;
+}
+
+.manual-btn i {
+    margin-right: 8px;
+}
+
+.manual-btn-present {
+    background: #27ae60;
+}
+.manual-btn-present:hover {
+    background: #219a52;
+    transform: translateY(-1px);
+}
+
+.manual-btn-absent {
+    background: #e67e22;
+}
+.manual-btn-absent:hover {
+    background: #cf6d17;
+    transform: translateY(-1px);
+}
+
+.manual-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 14px;
+}
+
+.manual-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 8px 12px;
+    min-width: 280px;
+    flex: 1;
+}
+
+.manual-search i {
+    color: #94a3b8;
+}
+
+#manualSearch {
+    border: none;
+    outline: none;
+    width: 100%;
+    font-size: 14px;
+}
+
+.manual-selectall {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    user-select: none;
+}
+
+.manual-table-wrap {
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.manual-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+}
+
+.manual-table thead th {
+    text-align: left;
+    padding: 12px 12px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: #64748b;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.manual-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 13px;
+    color: #334155;
+}
+
+.manual-table tbody tr:hover td {
+    background: #fbfdff;
+}
+
+.manual-hint {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.attendance-header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.download-sheet-btn {
+    background-color: #1f7a3a;
+    border: none;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.download-sheet-btn:hover {
+    background-color: #17612d;
+    transform: translateY(-1px);
+}
+
 /* Attendance List */
 .attendance-list {
     background: white;
@@ -598,6 +792,16 @@ body {
     display: inline-block;
 }
 
+.status-pending {
+    background-color: #e2e8f0;
+    color: #475569;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-block;
+}
+
 .attendance-mode {
     font-weight: 500;
     color: #2980b9;
@@ -619,6 +823,35 @@ body {
 
 .text-center {
     text-align: center;
+}
+
+.teacher-toast {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 12000;
+    min-width: 280px;
+    max-width: 420px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    color: #fff;
+    background: #2c3e50;
+    display: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.teacher-toast.show {
+    display: block;
+}
+
+.teacher-toast.success {
+    background: #27ae60;
+}
+
+.teacher-toast.error {
+    background: #e74c3c;
 }
 
 /* Responsive */
