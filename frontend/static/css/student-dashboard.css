@@ -355,6 +355,22 @@ canvas {
     display: block;
 }
 
+.toast-message {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 12000;
+    min-width: 260px;
+    max-width: 380px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    margin-top: 0;
+}
+
+.toast-message.show {
+    display: block;
+}
+
 .hidden {
     display: none;
 }

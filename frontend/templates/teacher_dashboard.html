@@ -59,8 +59,8 @@
                     <button class="mode-btn" onclick="selectMode('QR', this)">
                         <i class="fas fa-qrcode"></i> QR Code
                     </button>
-                    <button class="mode-btn" onclick="selectMode('Face', this)">
-                        <i class="fas fa-camera"></i> Face Recognition
+                    <button class="mode-btn mode-btn-disabled" type="button" disabled title="Face Recognition is coming soon">
+                        <i class="fas fa-camera"></i> Face Recognition (Soon)
                     </button>
                     <button class="mode-btn" onclick="selectMode('Manual', this)">
                         <i class="fas fa-edit"></i> Manual Entry
@@ -128,14 +128,47 @@
 
             <!-- Manual Section -->
             <div id="manualSection" class="manual-section hidden">
-                <div class="feature-card">
-                    <div class="feature-header">
+                <div class="manual-card">
+                    <div class="manual-header">
                         <h3><i class="fas fa-edit"></i> Manual Entry</h3>
+                        <div class="manual-actions">
+                            <button class="manual-btn manual-btn-present" onclick="markSelectedAttendance('Present')" type="button">
+                                <i class="fas fa-check"></i> Mark Selected Present
+                            </button>
+                            <button class="manual-btn manual-btn-absent" onclick="markSelectedAttendance('Absent')" type="button">
+                                <i class="fas fa-times"></i> Mark Selected Absent
+                            </button>
+                        </div>
                     </div>
-                    <div class="feature-body">
-                        <i class="fas fa-pen fa-4x"></i>
-                        <p>Manual Attendance Entry</p>
-                        <small>Coming soon</small>
+                    <div class="manual-controls">
+                        <div class="manual-search">
+                            <i class="fas fa-search"></i>
+                            <input id="manualSearch" type="text" placeholder="Search by name or roll no..." oninput="filterManualRoster()" />
+                        </div>
+                        <label class="manual-selectall">
+                            <input id="manualSelectAll" type="checkbox" onchange="toggleSelectAllManual(this.checked)" />
+                            Select all (filtered)
+                        </label>
+                    </div>
+                    <div class="manual-table-wrap">
+                        <table class="manual-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:44px;"></th>
+                                    <th>Student</th>
+                                    <th style="width:140px;">Roll No</th>
+                                    <th style="width:120px;">Status</th>
+                                    <th style="width:160px;">Last Marked</th>
+                                    <th style="width:140px;">Method</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manualTableBody">
+                                <tr><td colspan="6" class="text-center">Start a session to use manual entry</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="manual-hint">
+                        Tip: Manual Entry sets method as <strong>Teacher Marked</strong> (not QR).
                     </div>
                 </div>
             </div>
@@ -144,9 +177,14 @@
             <div id="attendanceList" class="attendance-list hidden">
                 <div class="attendance-header">
                     <h3><i class="fas fa-users"></i> Attendance List</h3>
-                    <button class="close-session-btn" onclick="closeSession()">
-                        <i class="fas fa-power-off"></i> Close Session
-                    </button>
+                    <div class="attendance-header-actions">
+                        <button class="download-sheet-btn" onclick="downloadSessionSheet()" type="button" title="Download Excel sheet">
+                            <i class="fas fa-file-excel"></i> Download Sheet
+                        </button>
+                        <button class="close-session-btn" onclick="closeSession()" type="button">
+                            <i class="fas fa-power-off"></i> Close Session
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="attendance-date">
@@ -161,7 +199,7 @@
                                 <th>Student Name</th>
                                 <th>Roll No</th>
                                 <th>Time</th>
-                                <th>Mode</th>
+                                <th>Method</th>
                                 <th>Status</th>
                             </tr>
                         </thead>

@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template, session, send_file
 from flask_cors import CORS
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import qrcode
 import io
 import base64
@@ -238,10 +238,10 @@ def get_low_attendance():
             u.email,
             c.course_code,
             c.course_name,
-            COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) as present_days,
+            COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) as present_days,
             COUNT(DISTINCT ar.record_id) as total_sessions,
             ROUND(
-                COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) * 100.0 /
+                COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) * 100.0 /
                 NULLIF(COUNT(DISTINCT ar.record_id), 0), 2
             ) as percentage
         FROM attendance_records ar
@@ -463,7 +463,7 @@ def admin_attendance_trend():
             s.session_id,
             s.session_date,
             sec_strength.total_students,
-            COALESCE(SUM(CASE WHEN ar.status = 'Present' THEN 1 ELSE 0 END), 0) AS present_count
+            COALESCE(SUM(CASE WHEN UPPER(ar.status) = 'PRESENT' THEN 1 ELSE 0 END), 0) AS present_count
         FROM attendance_sessions s
         JOIN (
             SELECT section_id, COUNT(*) AS total_students
@@ -1094,7 +1094,7 @@ def get_attendance_list():
 
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT section_id FROM attendance_sessions WHERE session_id = %s AND teacher_id = %s",
+        "SELECT section_id, is_active FROM attendance_sessions WHERE session_id = %s AND teacher_id = %s",
         (session_id, teacher_id)
     )
     session_row = cursor.fetchone()
@@ -1108,7 +1108,12 @@ def get_attendance_list():
             u.user_id,
             u.full_name as student_name,
             u.registration_no,
-            CASE WHEN ar.record_id IS NOT NULL THEN 'present' ELSE 'absent' END as status,
+            CASE
+                WHEN ar.record_id IS NULL THEN CASE WHEN %s = 1 THEN 'not_marked' ELSE 'absent' END
+                WHEN UPPER(ar.status) = 'PRESENT' THEN 'present'
+                WHEN UPPER(ar.status) = 'ABSENT' THEN 'absent'
+                ELSE 'not_marked'
+            END as status,
             ar.mode,
             ar.marked_at
         FROM student_enrollment se
@@ -1116,11 +1121,18 @@ def get_attendance_list():
         LEFT JOIN attendance_records ar ON ar.student_id = u.user_id AND ar.session_id = %s
         WHERE se.section_id = %s
         ORDER BY u.full_name
-    """, (session_id, session_row['section_id']))
+    """, (session_row.get('is_active', 0), session_id, session_row['section_id']))
     
     records = cursor.fetchall()
     cursor.close()
     conn.close()
+
+    # Convert datetime objects to ISO format strings for proper timezone handling
+    for record in records:
+        if record['marked_at']:
+            record['marked_at'] = record['marked_at'].isoformat()
+        else:
+            record['marked_at'] = None
 
     return jsonify({"status": "success", "attendance": records})
 
@@ -1154,6 +1166,254 @@ def close_session():
     conn.close()
     
     return jsonify({"status": "success", "message": "Session closed successfully"})
+
+@app.route('/teacher_mark_attendance', methods=['POST'])
+@role_required(['Teacher'])
+def teacher_mark_attendance():
+    data = request.get_json() or {}
+    teacher_id = session.get('user_id')
+    session_id = data.get('session_id')
+    student_ids = data.get('student_ids') or []
+    status = (data.get('status') or '').strip()
+
+    if not session_id:
+        return jsonify({"status": "error", "message": "Session ID missing"}), 400
+    if not isinstance(student_ids, list) or not student_ids:
+        return jsonify({"status": "error", "message": "student_ids must be a non-empty list"}), 400
+    if status not in ["Present", "Absent"]:
+        return jsonify({"status": "error", "message": "Invalid status. Allowed: Present, Absent"}), 400
+
+    # Deduplicate and validate ids
+    try:
+        student_ids = sorted({int(sid) for sid in student_ids})
+    except Exception:
+        return jsonify({"status": "error", "message": "Invalid student_ids"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT session_id, section_id, teacher_id, is_active
+               FROM attendance_sessions
+               WHERE session_id = %s""",
+            (session_id,)
+        )
+        sess = cursor.fetchone()
+        if not sess:
+            return jsonify({"status": "error", "message": "Session not found"}), 404
+        if int(sess.get('teacher_id')) != int(teacher_id):
+            return jsonify({"status": "error", "message": "Access denied"}), 403
+        if sess.get('is_active') != 1:
+            return jsonify({"status": "error", "message": "Session is not active"}), 400
+
+        section_id = sess.get('section_id')
+
+        placeholders = ",".join(["%s"] * len(student_ids))
+        cursor.execute(
+            f"""SELECT student_id
+                FROM student_enrollment
+                WHERE section_id = %s AND student_id IN ({placeholders})""",
+            (section_id, *student_ids)
+        )
+        enrolled = {row["student_id"] for row in cursor.fetchall()}
+        missing = [sid for sid in student_ids if sid not in enrolled]
+        if missing:
+            return jsonify({"status": "error", "message": "One or more students are not enrolled in this section"}), 400
+
+        affected = 0
+        if status == "Present":
+            # Upsert attendance records marked by teacher.
+            for sid in student_ids:
+                cursor.execute(
+                    """INSERT INTO attendance_records
+                       (session_id, student_id, section_id, attendance_date, mode, status, sync_status, marked_at)
+                       VALUES (%s, %s, %s, CURDATE(), 'Teacher', 'Present', 'Synced', CURRENT_TIMESTAMP)
+                       ON DUPLICATE KEY UPDATE
+                         status = VALUES(status),
+                         mode = VALUES(mode),
+                         sync_status = VALUES(sync_status),
+                         marked_at = CURRENT_TIMESTAMP""",
+                    (session_id, sid, section_id)
+                )
+                affected += cursor.rowcount
+        else:
+            # Explicitly store Absent during active session for audit + correct UX.
+            for sid in student_ids:
+                cursor.execute(
+                    """INSERT INTO attendance_records
+                       (session_id, student_id, section_id, attendance_date, mode, status, sync_status, marked_at)
+                       VALUES (%s, %s, %s, CURDATE(), 'Teacher', 'Absent', 'Synced', CURRENT_TIMESTAMP)
+                       ON DUPLICATE KEY UPDATE
+                         status = VALUES(status),
+                         mode = VALUES(mode),
+                         sync_status = VALUES(sync_status),
+                         marked_at = CURRENT_TIMESTAMP""",
+                    (session_id, sid, section_id)
+                )
+                affected += cursor.rowcount
+
+        conn.commit()
+        return jsonify({"status": "success", "updated": affected})
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({"status": "error", "message": f"Failed to update attendance: {exc}"}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def _format_dt_pkt(dt_value):
+    """Format datetime as PK time string for downloads."""
+    if not dt_value:
+        return ""
+    try:
+        from zoneinfo import ZoneInfo
+        pkt = ZoneInfo("Asia/Karachi")
+        if getattr(dt_value, "tzinfo", None) is None:
+            dt_value = dt_value.replace(tzinfo=timezone.utc)
+        return dt_value.astimezone(pkt).strftime("%Y-%m-%d %I:%M:%S %p")
+    except Exception:
+        # Fallback: return naive datetime as string.
+        try:
+            return dt_value.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return str(dt_value)
+
+
+@app.route('/teacher_session_report', methods=['GET'])
+@role_required(['Teacher'])
+def teacher_session_report():
+    teacher_id = session.get('user_id')
+    session_id = request.args.get('session_id', '').strip()
+    format_type = request.args.get('format', 'excel').strip().lower()
+
+    if not session_id:
+        return jsonify({"status": "error", "message": "Session ID is required"}), 400
+    if format_type not in ['excel']:
+        return jsonify({"status": "error", "message": "Invalid format. Allowed: excel"}), 400
+
+    try:
+        session_id_int = int(session_id)
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid session_id"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT s.session_id, s.session_date, s.section_id, s.teacher_id, s.is_active,
+                      sec.section_code, c.course_code, c.course_name, u.full_name AS teacher_name
+               FROM attendance_sessions s
+               JOIN sections sec ON s.section_id = sec.section_id
+               JOIN course_semester cs ON sec.cs_id = cs.cs_id
+               JOIN courses c ON cs.course_id = c.course_id
+               JOIN users u ON s.teacher_id = u.user_id
+               WHERE s.session_id = %s""",
+            (session_id_int,)
+        )
+        sess = cursor.fetchone()
+        if not sess:
+            return jsonify({"status": "error", "message": "Session not found"}), 404
+        if int(sess.get('teacher_id')) != int(teacher_id):
+            return jsonify({"status": "error", "message": "Access denied"}), 403
+
+        cursor.execute(
+            """SELECT 
+                    stu.full_name AS student_name,
+                    stu.registration_no,
+                    stu.email AS student_email,
+                    CASE
+                        WHEN ar.record_id IS NULL THEN CASE WHEN %s = 1 THEN 'Not Marked' ELSE 'Absent' END
+                        WHEN UPPER(ar.status) = 'PRESENT' THEN 'Present'
+                        WHEN UPPER(ar.status) = 'ABSENT' THEN 'Absent'
+                        ELSE 'Not Marked'
+                    END AS status,
+                    ar.mode,
+                    ar.marked_at
+               FROM student_enrollment se
+               JOIN users stu ON se.student_id = stu.user_id
+               LEFT JOIN attendance_records ar ON ar.student_id = stu.user_id AND ar.session_id = %s
+               WHERE se.section_id = %s
+               ORDER BY stu.full_name""",
+            (sess.get('is_active', 0), session_id_int, sess.get('section_id'))
+        )
+        rows = cursor.fetchall()
+
+        # Build Excel (reuse openpyxl dependency style)
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill
+        except Exception:
+            return jsonify({"status": "error", "message": "Excel report dependency missing. Run: pip install -r requirements.txt"}), 500
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Session Sheet"
+
+        headers = [
+            "Session Date", "Course Code", "Course Name", "Section", "Teacher",
+            "Student", "Roll No", "Student Email", "Status", "Method", "Marked At (PKT)"
+        ]
+        ws.append(headers)
+
+        header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True)
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+
+        def _method_label(mode_val):
+            if not mode_val:
+                return ""
+            m = str(mode_val).lower()
+            if m == "qr":
+                return "QR Scan"
+            if m == "teacher" or m == "manual":
+                return "Teacher Marked"
+            if m == "student":
+                return "Student Self"
+            return str(mode_val)
+
+        session_date = sess.get("session_date")
+        for r in rows:
+            ws.append([
+                session_date.strftime("%Y-%m-%d") if session_date else "",
+                sess.get("course_code", ""),
+                sess.get("course_name", ""),
+                sess.get("section_code", ""),
+                sess.get("teacher_name", ""),
+                r.get("student_name", ""),
+                r.get("registration_no", ""),
+                r.get("student_email", ""),
+                r.get("status", ""),
+                _method_label(r.get("mode")),
+                _format_dt_pkt(r.get("marked_at")),
+            ])
+
+        for column_cells in ws.columns:
+            max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
+            ws.column_dimensions[column_cells[0].column_letter].width = min(max_length + 2, 40)
+
+        report_stream = io.BytesIO()
+        wb.save(report_stream)
+        report_stream.seek(0)
+
+        filename = f"attendance_session_{sess.get('course_code','course')}_{sess.get('section_code','sec')}_{session_id_int}.xlsx"
+        return send_file(
+            report_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    finally:
+        cursor.close()
+        conn.close()
 
 # ============================================
 # STUDENT APIs
@@ -1241,19 +1501,22 @@ def mark_attendance():
     # Insert attendance
     try:
         cursor.execute("""
-            INSERT INTO attendance_records (session_id, student_id, section_id, mode, status, sync_status) 
-            VALUES (%s, %s, %s, %s, 'Present', 'Synced')
+            INSERT INTO attendance_records
+                (session_id, student_id, section_id, attendance_date, mode, status, sync_status)
+            VALUES
+                (%s, %s, %s, CURDATE(), %s, 'Present', 'Synced')
         """, (session_id, student_id, section_id, mode))
         conn.commit()
     except Exception as exc:
         conn.rollback()
-        if "Duplicate entry" in str(exc):
+        error_text = str(exc)
+        if "Duplicate entry" in error_text:
             cursor.close()
             conn.close()
             return jsonify({"status": "error", "message": "Attendance already marked"}), 400
         cursor.close()
         conn.close()
-        return jsonify({"status": "error", "message": "Failed to mark attendance"}), 500
+        return jsonify({"status": "error", "message": f"Failed to mark attendance: {error_text}"}), 500
     
     cursor.close()
     conn.close()
@@ -1275,10 +1538,10 @@ def get_my_attendance():
         SELECT
             c.course_code,
             c.course_name,
-            COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) as present_days,
+            COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) as present_days,
             COUNT(DISTINCT ar.record_id) as total_sessions,
             ROUND(
-                COUNT(DISTINCT CASE WHEN ar.status = 'Present' THEN ar.record_id END) * 100.0 /
+                COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) * 100.0 /
                 NULLIF(COUNT(DISTINCT ar.record_id), 0), 2
             ) as percentage
         FROM attendance_records ar

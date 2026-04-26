@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     session_id INT NULL,
     student_id INT NOT NULL,
     section_id INT NOT NULL,
-    attendance_date DATE NULL,
+    attendance_date DATE NOT NULL DEFAULT (CURRENT_DATE),
     mode VARCHAR(20) DEFAULT 'QR',
     status VARCHAR(20) DEFAULT 'Present',
     sync_status VARCHAR(20) DEFAULT 'Synced',
