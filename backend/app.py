@@ -243,7 +243,11 @@ def get_low_attendance():
             ROUND(
                 COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) * 100.0 /
                 NULLIF(COUNT(DISTINCT ar.record_id), 0), 2
-            ) as percentage
+            ) as percentage,
+            (SELECT f.status FROM fines f 
+             WHERE f.student_id = u.user_id 
+             AND f.course_code = c.course_code 
+             ORDER BY f.issued_date DESC LIMIT 1) as fine_status
         FROM attendance_records ar
         JOIN users u ON ar.student_id = u.user_id
         JOIN sections sec ON ar.section_id = sec.section_id
@@ -252,13 +256,18 @@ def get_low_attendance():
         WHERE u.role = 'Student'
         GROUP BY u.user_id, u.full_name, u.email, c.course_code, c.course_name
         HAVING percentage < 75
+        AND NOT EXISTS (
+            SELECT 1 FROM fines f
+            WHERE f.student_id = u.user_id
+            AND f.course_code = c.course_code
+            AND f.status = 'Paid'
+        )
         ORDER BY percentage ASC
     """)
     students = cursor.fetchall()
     cursor.close()
     conn.close()
     return jsonify({"status": "success", "students": students})
-
 
 # ============================================
 # ISSUE FINE (ADMIN)
@@ -297,6 +306,57 @@ def issue_fine():
     """, (student_id, course_code, course_name, percentage))
     conn.commit()
     
+    # Get student info for email
+    cursor2 = conn.cursor(dictionary=True)
+    cursor2.execute("""
+       SELECT u.email, u.full_name 
+       FROM users u 
+       WHERE u.user_id = %s
+    """, (student_id,))
+    student_info = cursor2.fetchone()
+    cursor2.close()
+
+    if student_info:
+        email_body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #e74c3c; padding: 20px; text-align: center;">
+               <h2 style="color: white; margin: 0;">⚠️ Attendance Fine Issued</h2>
+            </div>
+        <div style="padding: 30px; background: #f9f9f9;">
+            <p>Dear <strong>{student_info['full_name']}</strong>,</p>
+            <p>A fine has been issued due to low attendance in the following course:</p>
+            <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+                <tr style="background:#ecf0f1;">
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Course</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd;">{course_code} - {course_name}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Attendance</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd; color:#e74c3c;">
+                        <strong>{percentage}%</strong>
+                    </td>
+                </tr>
+                <tr style="background:#ecf0f1;">
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Fine Amount</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd; color:#e74c3c;">
+                        <strong>Rs. 500.00</strong>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Status</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd; color:#e67e22;">
+                        <strong>PENDING</strong>
+                    </td>
+                </tr>
+            </table>
+            <p>Please log in to your student portal and pay the fine at your earliest convenience.</p>
+            <p style="color:#666;">Improve your attendance to avoid future fines.</p>
+            <p>Regards,<br><strong>AI Attendance System</strong></p>
+        </div>
+    </div>
+    """
+    send_email(student_info['email'], 'Attendance Fine Issued - AI Attendance System', email_body)
+
     cursor.close()
     conn.close()
     return jsonify({"status": "success", "message": "Fine issued successfully"})
@@ -349,57 +409,126 @@ def pay_fine():
     cursor.execute("""
         UPDATE fines 
         SET status = 'Paid', paid_date = NOW()
-        WHERE fine_id = %s AND student_id = %s
+        WHERE fine_id = %s AND student_id = %s AND status = 'Pending'
     """, (fine_id, session['user_id']))
     conn.commit()
     
-    # Get fine info for email
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Fine not found or already paid"}), 400
+
+    # Fine info fetch karo (student + course details)
     cursor2 = conn.cursor(dictionary=True)
     cursor2.execute("""
-        SELECT u.email, u.full_name, f.course_name, f.fine_amount 
+        SELECT u.email, u.full_name, f.course_code, f.course_name, f.fine_amount, f.paid_date
         FROM fines f 
         JOIN users u ON f.student_id = u.user_id 
         WHERE f.fine_id = %s
     """, (fine_id,))
     fine_info = cursor2.fetchone()
     cursor2.close()
-
-    if fine_info:
-        email_body = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: #27ae60; padding: 20px; text-align: center;">
-                <h2 style="color: white; margin: 0;">Payment Successful!</h2>
-            </div>
-            <div style="padding: 30px; background: #f9f9f9;">
-                <p>Dear <strong>{fine_info['full_name']}</strong>,</p>
-                <p>Your fine payment has been successfully processed.</p>
-                <table style="width:100%; border-collapse:collapse; margin:20px 0;">
-                    <tr style="background:#ecf0f1;">
-                        <td style="padding:10px; border:1px solid #ddd;"><strong>Course</strong></td>
-                        <td style="padding:10px; border:1px solid #ddd;">{fine_info['course_name']}</td>
-                     </tr>
-                     <tr>
-                        <td style="padding:10px; border:1px solid #ddd;"><strong>Amount Paid</strong></td>
-                        <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
-                            <strong>Rs. {fine_info['fine_amount']}</strong>
-                         </td>
-                     </tr>
-                     <tr style="background:#ecf0f1;">
-                        <td style="padding:10px; border:1px solid #ddd;"><strong>Status</strong></td>
-                        <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
-                            <strong>PAIDx</strong>
-                         </td>
-                     </tr>
-                 </table>
-                <p style="color:#666;">Please improve your attendance to avoid future fines.</p>
-                <p>Regards,<br><strong>AI Attendance System</strong></p>
-            </div>
-        </div>
-        """
-        send_email(fine_info['email'], 'Fine Payment Confirmation - AI Attendance System', email_body)
-
     cursor.close()
     conn.close()
+
+    if not fine_info:
+        return jsonify({"status": "success", "message": "Fine paid successfully"})
+
+    paid_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # ---- Student ko confirmation email ----
+    student_body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #27ae60; padding: 20px; text-align: center;">
+            <h2 style="color: white; margin: 0;">✅ Payment Successful!</h2>
+        </div>
+        <div style="padding: 30px; background: #f9f9f9;">
+            <p>Dear <strong>{fine_info['full_name']}</strong>,</p>
+            <p>Your fine payment has been successfully processed.</p>
+            <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+                <tr style="background:#ecf0f1;">
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Course</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd;">{fine_info['course_code']} - {fine_info['course_name']}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Amount Paid</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
+                        <strong>Rs. {fine_info['fine_amount']}</strong>
+                    </td>
+                </tr>
+                <tr style="background:#ecf0f1;">
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Status</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
+                        <strong>PAID</strong>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:10px; border:1px solid #ddd;"><strong>Paid At</strong></td>
+                    <td style="padding:10px; border:1px solid #ddd;">{paid_at}</td>
+                </tr>
+            </table>
+            <p style="color:#666;">Please improve your attendance to avoid future fines.</p>
+            <p>Regards,<br><strong>AI Attendance System</strong></p>
+        </div>
+    </div>
+    """
+    result1 = send_email(fine_info['email'], 'Fine Payment Confirmation - AI Attendance System', student_body)
+    print(f"[EMAIL] Student email to {fine_info['email']}: {'OK' if result1 else 'FAILED'}")
+
+    # ---- Admin ko notification email ----
+    try:
+        admin_conn = get_db_connection()
+        admin_cursor = admin_conn.cursor(dictionary=True)
+        admin_cursor.execute("SELECT email, full_name FROM users WHERE role = 'Admin' LIMIT 1")
+        admin_info = admin_cursor.fetchone()
+        admin_cursor.close()
+        admin_conn.close()
+
+        if admin_info:
+            admin_body = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #2c3e50; padding: 20px; text-align: center;">
+                    <h2 style="color: white; margin: 0;">💰 Fine Payment Received</h2>
+                </div>
+                <div style="padding: 30px; background: #f9f9f9;">
+                    <p>Dear <strong>{admin_info['full_name']}</strong>,</p>
+                    <p>A student has successfully paid their attendance fine.</p>
+                    <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+                        <tr style="background:#ecf0f1;">
+                            <td style="padding:10px; border:1px solid #ddd;"><strong>Student Name</strong></td>
+                            <td style="padding:10px; border:1px solid #ddd;">{fine_info['full_name']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px; border:1px solid #ddd;"><strong>Student Email</strong></td>
+                            <td style="padding:10px; border:1px solid #ddd;">{fine_info['email']}</td>
+                        </tr>
+                        <tr style="background:#ecf0f1;">
+                            <td style="padding:10px; border:1px solid #ddd;"><strong>Course</strong></td>
+                            <td style="padding:10px; border:1px solid #ddd;">{fine_info['course_code']} - {fine_info['course_name']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px; border:1px solid #ddd;"><strong>Amount Paid</strong></td>
+                            <td style="padding:10px; border:1px solid #ddd; color:#27ae60;">
+                                <strong>Rs. {fine_info['fine_amount']}</strong>
+                            </td>
+                        </tr>
+                        <tr style="background:#ecf0f1;">
+                            <td style="padding:10px; border:1px solid #ddd;"><strong>Paid At</strong></td>
+                            <td style="padding:10px; border:1px solid #ddd;">{paid_at}</td>
+                        </tr>
+                    </table>
+                    <p style="color:#666;">Login to Admin Dashboard to view updated fine records.</p>
+                    <p>Regards,<br><strong>AI Attendance System</strong></p>
+                </div>
+            </div>
+            """
+            result2 = send_email(admin_info['email'], f"Fine Paid by {fine_info['full_name']} - AI Attendance System", admin_body)
+            print(f"[EMAIL] Admin email to {admin_info['email']}: {'OK' if result2 else 'FAILED'}")
+        else:
+            print("[EMAIL] Admin user not found in DB")
+    except Exception as e:
+        print(f"[EMAIL] Admin email error: {e}")
+
     return jsonify({"status": "success", "message": "Fine paid successfully"})
 
 # ============================================
@@ -727,6 +856,37 @@ def _handle_admin_reports_download():
     if format_type == 'excel':
         return build_excel_report(rows, start_date_str, end_date_str)
     return build_pdf_report(rows, start_date_str, end_date_str)
+
+@app.route('/admin_fines_list', methods=['GET'])
+@role_required(['Admin'])
+def admin_fines_list():
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT 
+            f.fine_id,
+            u.full_name,
+            u.email,
+            f.course_code,
+            f.course_name,
+            f.attendance_percentage,
+            f.fine_amount,
+            f.status,
+            DATE_FORMAT(f.issued_date, '%Y-%m-%d %H:%i') as issued_date,
+            DATE_FORMAT(f.paid_date, '%Y-%m-%d %H:%i') as paid_date
+        FROM fines f
+        JOIN users u ON f.student_id = u.user_id
+        ORDER BY 
+            CASE f.status WHEN 'Pending' THEN 0 ELSE 1 END,
+            f.issued_date DESC
+    """)
+    fines = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "fines": fines})
 
 @app.route('/admin_reports_download', methods=['GET'])
 @role_required(['Admin'])

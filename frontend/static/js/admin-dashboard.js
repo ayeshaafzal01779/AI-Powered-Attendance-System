@@ -72,23 +72,33 @@ async function loadLowAttendance() {
   data.students.forEach((s) => {
     const row = tbody.insertRow();
     const color = s.percentage < 50 ? "danger" : "warning";
+
+    // Check karo fine already pending hai ya nahi
+    const alreadyIssued = s.fine_status === "Pending";
+
     row.innerHTML = `
-            <td><strong>${s.full_name}</strong></td>
-            <td>${s.email}</td>
-            <td>${s.course_code} - ${s.course_name}</td>
-            <td>
-                <span class="badge bg-${color} fs-6">
-                    ${s.percentage}%
-                </span>
-            </td>
-            <td><strong>Rs. 500</strong></td>
-            <td>
-                <button class="btn btn-danger btn-sm" 
-                    onclick="issueFine(${s.user_id}, '${s.course_code}', '${s.course_name}', ${s.percentage})">
-                    <i class="fas fa-gavel me-1"></i> Issue Fine
-                </button>
-            </td>
-        `;
+        <td><strong>${s.full_name}</strong></td>
+        <td>${s.email}</td>
+        <td>${s.course_code} - ${s.course_name}</td>
+        <td>
+            <span class="badge bg-${color} fs-6">
+                ${s.percentage}%
+            </span>
+        </td>
+        <td><strong>Rs. 500</strong></td>
+        <td>
+            ${
+              alreadyIssued
+                ? `<span class="badge bg-warning text-dark fs-6">
+                       <i class="fas fa-clock me-1"></i> Pending
+                   </span>`
+                : `<button class="btn btn-danger btn-sm" 
+                       onclick="issueFine(${s.user_id}, '${s.course_code}', '${s.course_name}', ${s.percentage})">
+                       <i class="fas fa-gavel me-1"></i> Issue Fine
+                   </button>`
+            }
+        </td>
+    `;
   });
 }
 
@@ -136,6 +146,41 @@ async function issueFine(studentId, courseCode, courseName, percentage) {
     }
   });
 }
+
+// ============================================
+// LOAD FINES HISTORY (ADMIN)
+// ============================================
+async function loadFinesHistory() {
+  const response = await apiCall("/admin_fines_list");
+  if (!response) return;
+
+  const data = await response.json();
+  const tbody = document.getElementById("finesHistoryBody");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  if (!data.fines || data.fines.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="7" class="text-center text-muted">No fines record found</td></tr>';
+    return;
+  }
+
+  data.fines.forEach((f) => {
+    const row = tbody.insertRow();
+    const statusColor = f.status === "Paid" ? "success" : "danger";
+    row.innerHTML = `
+      <td><strong>${f.full_name}</strong><br><small class="text-muted">${f.email}</small></td>
+      <td>${f.course_code}<br><small>${f.course_name}</small></td>
+      <td><span class="badge bg-warning text-dark">${f.attendance_percentage}%</span></td>
+      <td><strong>Rs. ${f.fine_amount}</strong></td>
+      <td><span class="badge bg-${statusColor}">${f.status}</span></td>
+      <td>${f.issued_date ? f.issued_date : "-"}</td>
+      <td>${f.paid_date ? f.paid_date : "-"}</td>
+    `;
+  });
+}
+
 // ============================================
 // LOAD STATS
 // ============================================
@@ -243,6 +288,7 @@ function showSection(sectionId) {
   if (activeSection) activeSection.classList.add("active");
 
   if (sectionId === "fines") loadLowAttendance();
+  if (sectionId === "fines") loadFinesHistory();
   if (sectionId === "students") loadStudents();
   if (sectionId === "teachers") loadTeachers();
 }
@@ -276,7 +322,7 @@ async function generateReport() {
     return;
   }
 
-  const button = document.querySelector('#reports button.btn.btn-danger');
+  const button = document.querySelector("#reports button.btn.btn-danger");
   if (button) {
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
@@ -374,7 +420,9 @@ function ensureReportFormatOptions() {
     }
   }
 
-  const existingValues = Array.from(select.options).map((option) => option.value);
+  const existingValues = Array.from(select.options).map(
+    (option) => option.value,
+  );
   if (!existingValues.includes("pdf")) {
     const pdfOption = document.createElement("option");
     pdfOption.value = "pdf";
@@ -566,7 +614,9 @@ function updateRoleSpecificFields() {
   const rollGroup = document.getElementById("studentRollGroup");
   const departmentGroup = document.getElementById("studentDepartmentGroup");
   const employeeGroup = document.getElementById("teacherEmployeeGroup");
-  const qualificationGroup = document.getElementById("teacherQualificationGroup");
+  const qualificationGroup = document.getElementById(
+    "teacherQualificationGroup",
+  );
   const rollNoEl = document.getElementById("newRollNo");
   const departmentEl = document.getElementById("newDepartment");
   const employeeIdEl = document.getElementById("newEmployeeId");
