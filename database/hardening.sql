@@ -26,46 +26,12 @@ SET @exists := (
     FROM information_schema.statistics
     WHERE table_schema = DATABASE()
       AND table_name = 'attendance_records'
-      AND index_name = 'uq_attendance_session_student'
-);
-SET @sql := IF(
-    @exists = 0,
-    'ALTER TABLE attendance_records ADD CONSTRAINT uq_attendance_session_student UNIQUE (session_id, student_id)',
-    'SELECT ''uq_attendance_session_student already exists'''
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Drop legacy duplicate unique index name if present
-SET @exists := (
-    SELECT COUNT(*)
-    FROM information_schema.statistics
-    WHERE table_schema = DATABASE()
-      AND table_name = 'attendance_records'
       AND index_name = 'uq_session_student'
 );
 SET @sql := IF(
-    @exists > 0,
-    'ALTER TABLE attendance_records DROP INDEX uq_session_student',
-    'SELECT ''uq_session_student not present'''
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Ensure attendance_date supports runtime inserts safely
-SET @col_exists := (
-    SELECT COUNT(*)
-    FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'attendance_records'
-      AND column_name = 'attendance_date'
-);
-SET @sql := IF(
-    @col_exists = 1,
-    'ALTER TABLE attendance_records MODIFY attendance_date DATE NOT NULL DEFAULT (CURRENT_DATE)',
-    'SELECT ''attendance_date column not found'''
+    @exists = 0,
+    'ALTER TABLE attendance_records ADD CONSTRAINT uq_session_student UNIQUE (session_id, student_id)',
+    'SELECT ''uq_session_student already exists'''
 );
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
