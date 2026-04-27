@@ -63,86 +63,89 @@ async function loadLowAttendance() {
   const data = await response.json();
   tbody.innerHTML = "";
 
-  if (data.students.length === 0) {
+  if (!data.students || data.students.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="6" class="text-center text-success">No students with low attendance!</td></tr>';
+      '<tr><td colspan="6" class="text-center text-success"><i class="fas fa-check-circle me-2"></i>No students with low attendance!</td></tr>';
     return;
   }
 
   data.students.forEach((s) => {
     const row = tbody.insertRow();
     const color = s.percentage < 50 ? "danger" : "warning";
-
-    // Check karo fine already pending hai ya nahi
     const alreadyIssued = s.fine_status === "Pending";
 
     row.innerHTML = `
-        <td><strong>${s.full_name}</strong></td>
-        <td>${s.email}</td>
-        <td>${s.course_code} - ${s.course_name}</td>
-        <td>
-            <span class="badge bg-${color} fs-6">
-                ${s.percentage}%
-            </span>
-        </td>
-        <td><strong>Rs. 500</strong></td>
-        <td>
-            ${
-              alreadyIssued
-                ? `<span class="badge bg-warning text-dark fs-6">
-                       <i class="fas fa-clock me-1"></i> Pending
-                   </span>`
-                : `<button class="btn btn-danger btn-sm" 
-                       onclick="issueFine(${s.user_id}, '${s.course_code}', '${s.course_name}', ${s.percentage})">
-                       <i class="fas fa-gavel me-1"></i> Issue Fine
-                   </button>`
-            }
-        </td>
+      <td><strong>${s.full_name}</strong><br>
+          <small class="text-muted">${s.email}</small></td>
+      <td>${s.course_code}<br>
+          <small class="text-muted">${s.course_name}</small></td>
+      <td><span class="badge bg-${color} fs-6">${s.percentage}%</span></td>
+      <td>${s.present_days} / ${s.total_sessions} classes</td>
+      <td><strong>Rs. 500</strong></td>
+      <td>
+        ${
+          alreadyIssued
+            ? `<span class="badge bg-warning text-dark px-3 py-2 fs-6">
+               <i class="fas fa-clock me-1"></i> Pending
+             </span>`
+            : `<button class="btn btn-danger btn-sm px-3"
+               onclick="issueFine(${s.user_id}, '${s.course_code}', '${s.course_name}', ${s.percentage})">
+               <i class="fas fa-gavel me-1"></i> Issue Fine
+             </button>`
+        }
+      </td>
     `;
   });
 }
 
+// ============================================
+// ISSUR FINE (ADMIN)
+// ============================================
+
 async function issueFine(studentId, courseCode, courseName, percentage) {
   Swal.fire({
     title: "Issue Fine?",
-    html: `<b>${courseCode}</b> - Issue a fine of <b>Rs. 500</b> for low attendance?`,
+    html: `<b>${courseName}</b><br>Course: <b>${courseCode}</b><br>Fine Amount: <b>Rs. 500</b>`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#e74c3c",
     cancelButtonColor: "#95a5a6",
-    confirmButtonText: "Yes, Issue!",
+    confirmButtonText: "Yes, Issue Fine!",
     cancelButtonText: "Cancel",
   }).then(async (result) => {
-    if (result.isConfirmed) {
-      const response = await apiCall("/admin_issue_fine", {
-        method: "POST",
-        body: JSON.stringify({
-          student_id: studentId,
-          course_code: courseCode,
-          course_name: courseName,
-          percentage: percentage,
-        }),
-      });
+    if (!result.isConfirmed) return;
 
-      if (!response) return;
-      const data = await response.json();
+    const response = await apiCall("/admin_issue_fine", {
+      method: "POST",
+      body: JSON.stringify({
+        student_id: studentId,
+        course_code: courseCode,
+        course_name: courseName,
+        percentage: percentage,
+      }),
+    });
 
-      if (data.status === "success") {
-        Swal.fire({
-          title: "Fine Issued!",
-          text: "Fine successfully issue ho gayi!",
-          icon: "success",
-          confirmButtonColor: "#27ae60",
-        });
+    if (!response) return;
+    const data = await response.json();
+
+    if (data.status === "success") {
+      Swal.fire({
+        title: "Fine Issued!",
+        text: "Fine issued successfully. Student ko email bhi bhej di gayi hai.",
+        icon: "success",
+        confirmButtonColor: "#27ae60",
+      }).then(() => {
+        // Dono tables refresh karo
         loadLowAttendance();
-      } else {
-        Swal.fire({
-          title: "Error!",
-          text: data.message || "Any Problem Happened!",
-          icon: "error",
-          confirmButtonColor: "#e74c3c",
-        });
-      }
+        loadFinesHistory();
+      });
+    } else {
+      Swal.fire({
+        title: "Error!",
+        text: data.message || "Kuch masla hua hai!",
+        icon: "error",
+        confirmButtonColor: "#e74c3c",
+      });
     }
   });
 }
@@ -151,32 +154,52 @@ async function issueFine(studentId, courseCode, courseName, percentage) {
 // LOAD FINES HISTORY (ADMIN)
 // ============================================
 async function loadFinesHistory() {
+  const tbody = document.getElementById("finesHistoryBody");
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    '<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+
   const response = await apiCall("/admin_fines_list");
   if (!response) return;
 
   const data = await response.json();
-  const tbody = document.getElementById("finesHistoryBody");
-  if (!tbody) return;
-
   tbody.innerHTML = "";
 
   if (!data.fines || data.fines.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="7" class="text-center text-muted">No fines record found</td></tr>';
+      '<tr><td colspan="7" class="text-center text-muted">Koi fine record nahi mila</td></tr>';
     return;
   }
 
   data.fines.forEach((f) => {
     const row = tbody.insertRow();
     const statusColor = f.status === "Paid" ? "success" : "danger";
+    const statusIcon =
+      f.status === "Paid"
+        ? '<i class="fas fa-check-circle me-1"></i>'
+        : '<i class="fas fa-clock me-1"></i>';
+
     row.innerHTML = `
-      <td><strong>${f.full_name}</strong><br><small class="text-muted">${f.email}</small></td>
-      <td>${f.course_code}<br><small>${f.course_name}</small></td>
-      <td><span class="badge bg-warning text-dark">${f.attendance_percentage}%</span></td>
+      <td>
+        <strong>${f.full_name}</strong><br>
+        <small class="text-muted">${f.email}</small>
+      </td>
+      <td>
+        <strong>${f.course_code}</strong><br>
+        <small class="text-muted">${f.course_name}</small>
+      </td>
+      <td>
+        <span class="badge bg-warning text-dark">${f.attendance_percentage}%</span>
+      </td>
       <td><strong>Rs. ${f.fine_amount}</strong></td>
-      <td><span class="badge bg-${statusColor}">${f.status}</span></td>
-      <td>${f.issued_date ? f.issued_date : "-"}</td>
-      <td>${f.paid_date ? f.paid_date : "-"}</td>
+      <td>
+        <span class="badge bg-${statusColor} px-3 py-2">
+          ${statusIcon}${f.status}
+        </span>
+      </td>
+      <td>${f.issued_date || "-"}</td>
+      <td>${f.paid_date || "-"}</td>
     `;
   });
 }
@@ -287,8 +310,10 @@ function showSection(sectionId) {
   const activeSection = document.getElementById(sectionId);
   if (activeSection) activeSection.classList.add("active");
 
-  if (sectionId === "fines") loadLowAttendance();
-  if (sectionId === "fines") loadFinesHistory();
+  if (sectionId === "fines") {
+    loadLowAttendance();
+    loadFinesHistory();
+  }
   if (sectionId === "students") loadStudents();
   if (sectionId === "teachers") loadTeachers();
 }
