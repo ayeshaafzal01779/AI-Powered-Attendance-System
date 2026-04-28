@@ -1,0 +1,195 @@
+-- =========================================================
+-- STEP 5: SECTIONS + ENROLLMENT
+-- Each course gets ONE section (all 20 students in it)
+-- Teacher assignment: each teacher owns 1 course in their semester
+-- Teacher → Course mapping by employee_id suffix
+-- =========================================================
+USE TriAttendanceDB;
+
+-- =========================================================
+-- CREATE SECTIONS
+-- One section per course_semester record
+-- Teacher matched by their employee_id which aligns with course code
+-- =========================================================
+
+-- CS SECTIONS
+INSERT INTO sections (cs_id, section_code, teacher_id, room_no, capacity, enrolled_count, is_active)
+SELECT
+    cs.cs_id,
+    'A',
+    CASE c.course_code
+        WHEN 'CS201' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-201' LIMIT 1)
+        WHEN 'CS202' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-202' LIMIT 1)
+        WHEN 'CS203' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-203' LIMIT 1)
+        WHEN 'CS204' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-204' LIMIT 1)
+        WHEN 'CS205' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-205' LIMIT 1)
+        WHEN 'CS401' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-401' LIMIT 1)
+        WHEN 'CS402' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-402' LIMIT 1)
+        WHEN 'CS403' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-403' LIMIT 1)
+        WHEN 'CS404' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-404' LIMIT 1)
+        WHEN 'CS405' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-405' LIMIT 1)
+        WHEN 'CS601' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-601' LIMIT 1)
+        WHEN 'CS602' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-602' LIMIT 1)
+        WHEN 'CS603' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-603' LIMIT 1)
+        WHEN 'CS604' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-604' LIMIT 1)
+        WHEN 'CS605' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-605' LIMIT 1)
+        WHEN 'CS801' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-801' LIMIT 1)
+        WHEN 'CS802' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-802' LIMIT 1)
+        WHEN 'CS803' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-803' LIMIT 1)
+        WHEN 'CS804' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-804' LIMIT 1)
+        WHEN 'CS805' THEN (SELECT user_id FROM users WHERE employee_id='TCH-CS-805' LIMIT 1)
+    END,
+    CONCAT('CS-Room-', c.course_code),
+    20, 0, TRUE
+FROM course_semester cs
+JOIN courses c ON c.course_id = cs.course_id
+WHERE c.course_code LIKE 'CS%';
+
+-- IT SECTIONS (FIXED)
+INSERT INTO sections (cs_id, section_code, teacher_id, room_no, capacity, enrolled_count, is_active)
+SELECT
+    cs.cs_id, 'A',
+    CASE c.course_code
+        -- Semester 2 courses (IT201-IT205) - Use Semester 2 teachers
+        WHEN 'IT201' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-201' OR employee_id='TCH-IT-601' LIMIT 1)
+        WHEN 'IT202' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-202' OR employee_id='TCH-IT-602' LIMIT 1)
+        WHEN 'IT203' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-203' OR employee_id='TCH-IT-603' LIMIT 1)
+        WHEN 'IT204' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-204' OR employee_id='TCH-IT-604' LIMIT 1)
+        WHEN 'IT205' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-205' OR employee_id='TCH-IT-605' LIMIT 1)
+        -- Semester 4 courses
+        WHEN 'IT401' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-401' LIMIT 1)
+        WHEN 'IT402' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-402' LIMIT 1)
+        WHEN 'IT403' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-403' LIMIT 1)
+        WHEN 'IT404' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-404' LIMIT 1)
+        WHEN 'IT405' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-405' LIMIT 1)
+        -- Semester 6 courses
+        WHEN 'IT601' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-601' LIMIT 1)
+        WHEN 'IT602' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-602' LIMIT 1)
+        WHEN 'IT603' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-603' LIMIT 1)
+        WHEN 'IT604' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-604' LIMIT 1)
+        WHEN 'IT605' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-605' LIMIT 1)
+        -- Semester 8 courses
+        WHEN 'IT801' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-801' LIMIT 1)
+        WHEN 'IT802' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-802' LIMIT 1)
+        WHEN 'IT803' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-803' LIMIT 1)
+        WHEN 'IT804' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-804' LIMIT 1)
+        WHEN 'IT805' THEN (SELECT user_id FROM users WHERE employee_id='TCH-IT-805' LIMIT 1)
+    END,
+    CONCAT('IT-Room-', c.course_code),
+    20, 0, TRUE
+FROM course_semester cs
+JOIN courses c ON c.course_id = cs.course_id
+WHERE c.course_code LIKE 'IT%';
+
+-- SE SECTIONS
+INSERT INTO sections (cs_id, section_code, teacher_id, room_no, capacity, enrolled_count, is_active)
+SELECT
+    cs.cs_id, 'A',
+    CASE c.course_code
+        WHEN 'SE201' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-201' LIMIT 1)
+        WHEN 'SE202' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-202' LIMIT 1)
+        WHEN 'SE203' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-203' LIMIT 1)
+        WHEN 'SE204' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-204' LIMIT 1)
+        WHEN 'SE205' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-205' LIMIT 1)
+        WHEN 'SE401' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-401' LIMIT 1)
+        WHEN 'SE402' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-402' LIMIT 1)
+        WHEN 'SE403' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-403' LIMIT 1)
+        WHEN 'SE404' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-404' LIMIT 1)
+        WHEN 'SE405' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-405' LIMIT 1)
+        WHEN 'SE601' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-601' LIMIT 1)
+        WHEN 'SE602' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-602' LIMIT 1)
+        WHEN 'SE603' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-603' LIMIT 1)
+        WHEN 'SE604' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-604' LIMIT 1)
+        WHEN 'SE605' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-605' LIMIT 1)
+        WHEN 'SE801' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-801' LIMIT 1)
+        WHEN 'SE802' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-802' LIMIT 1)
+        WHEN 'SE803' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-803' LIMIT 1)
+        WHEN 'SE804' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-804' LIMIT 1)
+        WHEN 'SE805' THEN (SELECT user_id FROM users WHERE employee_id='TCH-SE-805' LIMIT 1)
+    END,
+    CONCAT('SE-Room-', c.course_code),
+    20, 0, TRUE
+FROM course_semester cs
+JOIN courses c ON c.course_id = cs.course_id
+WHERE c.course_code LIKE 'SE%';
+
+-- AI SECTIONS
+INSERT INTO sections (cs_id, section_code, teacher_id, room_no, capacity, enrolled_count, is_active)
+SELECT
+    cs.cs_id, 'A',
+    CASE c.course_code
+        WHEN 'AI201' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-201' LIMIT 1)
+        WHEN 'AI202' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-202' LIMIT 1)
+        WHEN 'AI203' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-203' LIMIT 1)
+        WHEN 'AI204' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-204' LIMIT 1)
+        WHEN 'AI205' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-205' LIMIT 1)
+        WHEN 'AI401' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-401' LIMIT 1)
+        WHEN 'AI402' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-402' LIMIT 1)
+        WHEN 'AI403' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-403' LIMIT 1)
+        WHEN 'AI404' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-404' LIMIT 1)
+        WHEN 'AI405' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-405' LIMIT 1)
+        WHEN 'AI601' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-601' LIMIT 1)
+        WHEN 'AI602' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-602' LIMIT 1)
+        WHEN 'AI603' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-603' LIMIT 1)
+        WHEN 'AI604' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-604' LIMIT 1)
+        WHEN 'AI605' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-605' LIMIT 1)
+        WHEN 'AI801' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-801' LIMIT 1)
+        WHEN 'AI802' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-802' LIMIT 1)
+        WHEN 'AI803' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-803' LIMIT 1)
+        WHEN 'AI804' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-804' LIMIT 1)
+        WHEN 'AI805' THEN (SELECT user_id FROM users WHERE employee_id='TCH-AI-805' LIMIT 1)
+    END,
+    CONCAT('AI-Room-', c.course_code),
+    20, 0, TRUE
+FROM course_semester cs
+JOIN courses c ON c.course_id = cs.course_id
+WHERE c.course_code LIKE 'AI%';
+
+-- =========================================================
+-- ENROLL STUDENTS INTO SECTIONS
+-- Each student enrolled in all 5 courses of their semester
+-- Match: student's current_sem_id → section's semester via cs_id
+-- =========================================================
+INSERT INTO student_enrollment (student_id, section_id)
+SELECT DISTINCT u.user_id, sec.section_id
+FROM users u
+JOIN sections sec ON sec.cs_id IN (
+    SELECT cs.cs_id
+    FROM course_semester cs
+    JOIN semesters s ON s.sem_id = cs.sem_id
+    WHERE s.sem_id = u.current_sem_id
+)
+JOIN course_semester cs2 ON cs2.cs_id = sec.cs_id
+JOIN courses c ON c.course_id = cs2.course_id
+WHERE u.role = 'Student'
+  AND c.dept_id = u.dept_id
+  AND NOT EXISTS (
+      SELECT 1 FROM student_enrollment se2
+      WHERE se2.student_id = u.user_id AND se2.section_id = sec.section_id
+  );
+
+-- =========================================================
+-- UPDATE enrolled_count
+-- =========================================================
+SET SQL_SAFE_UPDATES = 0;
+UPDATE sections sec
+SET enrolled_count = (
+    SELECT COUNT(*) FROM student_enrollment se WHERE se.section_id = sec.section_id
+);
+SET SQL_SAFE_UPDATES = 1;
+
+-- =========================================================
+-- VERIFY
+-- =========================================================
+SELECT 'STEP 5 COMPLETE' AS status;
+SELECT COUNT(*) AS total_sections FROM sections;
+SELECT COUNT(*) AS total_enrollments FROM student_enrollment;
+
+SELECT d.dept_code, s.semester_number, c.course_code, sec.enrolled_count
+FROM sections sec
+JOIN course_semester cs ON cs.cs_id = sec.cs_id
+JOIN courses c ON c.course_id = cs.course_id
+JOIN departments d ON d.dept_id = c.dept_id
+JOIN semesters s ON s.sem_id = cs.sem_id
+ORDER BY d.dept_code, s.semester_number, c.course_code
+LIMIT 40;
