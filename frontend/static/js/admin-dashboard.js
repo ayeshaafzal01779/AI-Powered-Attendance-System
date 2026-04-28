@@ -749,6 +749,97 @@ async function loadAttendanceTrendChart() {
 }
 
 // ============================================
+// FACE DATA SYNC
+// ============================================
+
+async function startDatasetSync() {
+    const syncBtn = document.getElementById('syncBtn');
+    const syncStatus = document.getElementById('syncStatus');
+    const syncResults = document.getElementById('syncResults');
+
+    // Reset UI
+    syncBtn.disabled = true;
+    syncStatus.classList.remove('d-none');
+    syncResults.classList.add('d-none');
+    syncResults.innerHTML = '';
+
+    try {
+        const response = await apiCall("/api/admin/sync_faces", {
+            method: "POST"
+        });
+
+        if (!response) throw new Error("No response from server");
+        const data = await response.json();
+
+        if (data.status === "success") {
+            syncResults.classList.remove('d-none');
+            data.results.forEach(msg => {
+                const div = document.createElement('div');
+                div.style.padding = '5px 10px';
+                div.style.marginBottom = '2px';
+                div.style.borderRadius = '4px';
+                div.style.backgroundColor = msg.includes('✅') ? '#e8f5e9' : (msg.includes('⚠️') ? '#fff3e0' : '#ffebee');
+                div.style.color = msg.includes('✅') ? '#2e7d32' : (msg.includes('⚠️') ? '#ef6c00' : '#c62828');
+                div.style.borderLeft = `4px solid ${msg.includes('✅') ? '#4caf50' : (msg.includes('⚠️') ? '#ff9800' : '#f44336')}`;
+                div.textContent = msg;
+                syncResults.appendChild(div);
+            });
+
+            Swal.fire({
+                title: "Sync Finished!",
+                text: "Student dataset has been processed.",
+                icon: "success",
+                confirmButtonColor: "#27ae60"
+            });
+            updateFaceStats();
+        } else {
+            throw new Error(data.message || "Unknown error occurred");
+        }
+    } catch (err) {
+        console.error("Sync error:", err);
+        Swal.fire({
+            title: "Sync Failed",
+            text: err.message,
+            icon: "error",
+            confirmButtonColor: "#e74c3c"
+        });
+    } finally {
+        syncBtn.disabled = false;
+        syncStatus.classList.add('d-none');
+    }
+}
+
+async function updateFaceStats() {
+    try {
+        const response = await apiCall("/api/admin/face_stats");
+        if (!response) return;
+        const data = await response.json();
+        if (data.status === "success") {
+            document.getElementById('statStudentCount').textContent = data.student_count;
+            document.getElementById('statFaceCount').textContent = data.total_faces;
+        }
+    } catch (err) {
+        console.error("Error fetching face stats:", err);
+    }
+}
+
+// Update showSection to refresh stats when face-sync is clicked
+const originalShowSection = window.showSection;
+window.showSection = function(sectionId) {
+    if (sectionId === 'face-sync') {
+        updateFaceStats();
+    }
+    if (typeof originalShowSection === 'function') {
+        originalShowSection(sectionId);
+    } else {
+        // Fallback if original is not accessible
+        document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
+        const target = document.getElementById(sectionId);
+        if (target) target.classList.remove('hidden');
+    }
+};
+
+// ============================================
 // INITIALIZE
 // ============================================
 

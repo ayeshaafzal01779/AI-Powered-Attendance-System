@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, render_template, session, send_file
+# type: ignore
+from flask import Flask, request, jsonify, render_template, session, send_file, Response
 from flask_cors import CORS
 from datetime import datetime, date, timezone
 import qrcode
@@ -10,6 +11,7 @@ import hmac
 import hashlib
 from functools import wraps
 from database import get_db_connection
+from face_utils import face_ai
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -17,9 +19,9 @@ import bcrypt
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+_ = load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-def require_env(var_name):
+def require_env(var_name: str) -> str:
     value = os.getenv(var_name)
     if value is None or value.strip() == "":
         raise RuntimeError(f"Missing required environment variable: {var_name}")
@@ -29,7 +31,7 @@ def require_env(var_name):
 GMAIL_USER = require_env("GMAIL_USER")
 GMAIL_PASSWORD = require_env("GMAIL_PASSWORD")
 
-def send_email(to_email, subject, body):
+def send_email(to_email: str, subject: str, body: str) -> bool:
     try:
         msg = MIMEMultipart()
         msg['From'] = GMAIL_USER
@@ -38,10 +40,10 @@ def send_email(to_email, subject, body):
         msg.attach(MIMEText(body, 'html'))
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(GMAIL_USER, GMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
+        _ = server.starttls()
+        _ = server.login(GMAIL_USER, GMAIL_PASSWORD)
+        _ = server.send_message(msg)  # type: ignore
+        _ = server.quit()
         return True
     except Exception as e:
         print(f"Email error: {e}")
@@ -55,14 +57,14 @@ app = Flask(__name__,
 
 # CORS setup - Allow credentials
 allowed_origins = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000")
-CORS(
+_ = CORS(
     app,
     supports_credentials=True,
     origins=[origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
 )
 
 @app.after_request
-def add_no_cache_headers(response):
+def add_no_cache_headers(response: Response) -> Response:
     # Prevent stale dashboard HTML/JS from being served by browser cache.
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
@@ -78,17 +80,17 @@ QR_EXPIRY_SECONDS = 15
 # ROLE PROTECTION DECORATORS
 # ============================================
 
-def role_required(allowed_roles):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
+def role_required(allowed_roles: list[str]):  # type: ignore
+    def decorator(f):  # type: ignore
+        @wraps(f)  # type: ignore
+        def decorated_function(*args, **kwargs):  # type: ignore[no-untyped-def]
             # Check login session
             if 'user_id' not in session:
                 return jsonify({"status": "error", "message": "Login required"}), 401
             # Check role
             if session.get('role') not in allowed_roles:
                 return jsonify({"status": "error", "message": "Access denied"}), 403
-            return f(*args, **kwargs)
+            return f(*args, **kwargs)  # type: ignore
         return decorated_function
     return decorator
 
@@ -125,14 +127,17 @@ def current_user():
     user_id = session.get('user_id')
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute(
+    if conn is None:  # type: ignore
+        return jsonify({"status": "error", "message": "Database connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True)  # type: ignore
+    cursor.execute(  # type: ignore
         "SELECT user_id, full_name, email, role FROM users WHERE user_id = %s",
         (user_id,)
     )
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    user = cursor.fetchone()  # type: ignore
+    _ = cursor.close()  # type: ignore
+    conn.close()  # type: ignore
     
     if not user:
         return jsonify({"status": "error", "message": "User not found"}), 404
@@ -140,10 +145,10 @@ def current_user():
     return jsonify({
         "status": "success",
         "user": {
-            "id": user['user_id'],
-            "name": user['full_name'],
-            "email": user['email'],
-            "role": user['role']
+            "id": user["user_id"],  # type: ignore
+            "name": user["full_name"],  # type: ignore
+            "email": user["email"],  # type: ignore
+            "role": user["role"]  # type: ignore
         }
     })
 
@@ -153,42 +158,42 @@ def current_user():
 
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+    data = request.json  # type: ignore
+    email = data.get('email') if data else None  # type: ignore
+    password = data.get('password') if data else None  # type: ignore
     
     if not email or not password:
         return jsonify({"status": "error", "message": "Email and password required"}), 400
 
     conn = get_db_connection()
-    if conn is None:
+    if conn is None:  # type: ignore
         return jsonify({"status": "error", "message": "Database connection failed"}), 500
 
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute(
+    cursor = conn.cursor(dictionary=True)  # type: ignore
+    cursor.execute(  # type: ignore
         "SELECT user_id, full_name, email, role, password FROM users WHERE email = %s",
         (email,)
     )
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    user = cursor.fetchone()  # type: ignore
+    _ = cursor.close()  # type: ignore
+    conn.close()  # type: ignore
     
     if not user:
         return jsonify({"status": "error", "message": "Invalid email or password"}), 401
     
     # Verify hashed password
     try:
-        if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-            session['user_id'] = user['user_id']
-            session['role'] = user['role']
+        if bcrypt.checkpw(password.encode('utf-8'), user["password"].encode('utf-8')):  # type: ignore
+            session['user_id'] = user["user_id"]  # type: ignore
+            session['role'] = user["role"]  # type: ignore
             
             return jsonify({
                 "status": "success",
                 "user": {
-                    "id": user['user_id'],
-                    "name": user['full_name'],
-                    "email": user['email'],
-                    "role": user['role']
+                    "id": user["user_id"],  # type: ignore
+                    "name": user["full_name"],  # type: ignore
+                    "email": user["email"],  # type: ignore
+                    "role": user["role"]  # type: ignore
                 }
             })
         else:
@@ -260,7 +265,7 @@ def get_low_attendance():
             SELECT 1 FROM fines f
             WHERE f.student_id = u.user_id
             AND f.course_code = c.course_code
-            AND f.status = 'Paid'
+            AND f.status IN ('Pending', 'Paid')
         )
         ORDER BY percentage ASC
     """)
@@ -909,6 +914,110 @@ def admin_report_download_alias():
 def download_report_alias():
     return _handle_admin_reports_download()
 
+# ============================================
+# FACE RECOGNITION ADMIN ACTIONS
+# ============================================
+
+@app.route('/api/mark_face_attendance', methods=['POST'])
+@role_required(['Student'])
+def mark_face_attendance():
+    """Matches live face and marks attendance"""
+    data = request.get_json() or {}
+    session_id = data.get('session_id')
+    image_base64 = data.get('image')
+    user_id = session.get('user_id')
+
+    if not session_id or not image_base64:
+        return jsonify({"status": "error", "message": "Session ID and Image are required"}), 400
+
+    # 1. Verify Face
+    match_result = face_ai.match_face(user_id, image_base64)
+    if match_result['status'] == 'error':
+        return jsonify(match_result), 400
+
+    # 2. Mark Attendance (Reuse existing logic or call mark_attendance logic)
+    # We'll implement the logic here directly for Phase 3
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"status": "error", "message": "Database connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Verify session is active and in Face mode
+        cursor.execute("""
+            SELECT session_id, section_id, teacher_id, is_active, mode 
+            FROM attendance_sessions 
+            WHERE session_id = %s AND is_active = 1 AND mode = 'Face'
+        """, (session_id,))
+        session_row = cursor.fetchone()
+        
+        if not session_row:
+            return jsonify({"status": "error", "message": "Invalid or inactive Face Session"}), 404
+        
+        section_id = session_row['section_id']
+
+        # Check if already marked
+        cursor.execute("""
+            SELECT record_id FROM attendance_records 
+            WHERE session_id = %s AND student_id = %s
+        """, (session_id, user_id))
+        if cursor.fetchone():
+            return jsonify({"status": "error", "message": "Attendance already marked for this session"}), 400
+        
+        # Mark Attendance
+        cursor.execute("""
+            INSERT INTO attendance_records (session_id, student_id, section_id, status, mode, marked_at) 
+            VALUES (%s, %s, %s, 'Present', 'Face', %s)
+        """, (session_id, user_id, section_id, datetime.now()))
+        
+        conn.commit()
+        return jsonify({"status": "success", "message": "Attendance marked successfully via Face Recognition!"})
+        
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/sync_faces', methods=['POST'])
+@role_required(['Admin'])
+def sync_faces():
+    """Triggers the dataset sync process"""
+    try:
+        result = face_ai.sync_dataset_to_db()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/face_stats', methods=['GET'])
+@role_required(['Admin'])
+def get_face_stats():
+    """Returns statistics about synced faces"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Count total students with face data
+        cursor.execute("SELECT COUNT(DISTINCT student_id) FROM facial_data")
+        student_count = cursor.fetchone()[0]
+        
+        # Count total embeddings
+        cursor.execute("SELECT COUNT(*) FROM facial_data")
+        total_faces = cursor.fetchone()[0]
+        
+        return jsonify({
+            "status": "success",
+            "student_count": student_count,
+            "total_faces": total_faces
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 @app.route('/admin_add_user', methods=['POST'])
 @role_required(['Admin'])
 def admin_add_user():
@@ -1090,6 +1199,35 @@ def get_teacher_courses():
     conn.close()
     
     return jsonify({"status": "success", "courses": courses})
+
+# ============================================
+# SESSION MANAGEMENT (TEACHER)
+# ============================================
+
+@app.route('/update_session_mode', methods=['POST'])
+@role_required(['Teacher'])
+def update_session_mode():
+    data = request.json
+    session_id = data.get('session_id')
+    mode = data.get('mode')
+    
+    if not session_id or not mode:
+        return jsonify({"status": "error", "message": "Missing session_id or mode"}), 400
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE attendance_sessions SET mode = %s WHERE session_id = %s",
+            (mode, session_id)
+        )
+        conn.commit()
+        return jsonify({"status": "success", "message": f"Mode updated to {mode}"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/start_session', methods=['POST'])
 @role_required(['Teacher'])
@@ -1717,6 +1855,54 @@ def get_my_attendance():
     conn.close()
     
     return jsonify({"status": "success", "attendance": attendance})
+
+@app.route('/my_attendance_history', methods=['GET'])
+@role_required(['Student'])
+def get_my_attendance_history():
+    student_id = session.get('user_id')
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"status": "error", "message": "DB connection failed"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Fetch last 10 attendance records
+        cursor.execute("""
+            SELECT 
+                ar.record_id,
+                c.course_code,
+                c.course_name,
+                DATE_FORMAT(asess.session_date, '%Y-%m-%d') as session_date,
+                ar.status,
+                ar.mode,
+                ar.marked_at
+            FROM attendance_records ar
+            JOIN attendance_sessions asess ON ar.session_id = asess.session_id
+            JOIN sections sec ON ar.section_id = sec.section_id
+            JOIN course_semester cs ON sec.cs_id = cs.cs_id
+            JOIN courses c ON cs.course_id = c.course_id
+            WHERE ar.student_id = %s
+            ORDER BY asess.session_date DESC, ar.marked_at DESC
+            LIMIT 10
+        """, (student_id,))
+        
+        history = cursor.fetchall()
+
+        # Convert datetime objects to ISO format strings for proper timezone handling
+        for record in history:
+            if record['marked_at']:
+                record['marked_at'] = record['marked_at'].isoformat()
+            else:
+                record['marked_at'] = None
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"status": "success", "history": history})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # ============================================
 # RUN APP

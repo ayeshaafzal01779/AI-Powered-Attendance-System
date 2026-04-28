@@ -21,6 +21,21 @@ let html5QrCode = null;
 let isScanning = false;
 let messageTimer = null;
 
+const pkTimeFmt = new Intl.DateTimeFormat('en-PK', {
+  timeZone: 'Asia/Karachi',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: true
+});
+
+function formatPkTime(value) {
+  if (!value) return '--:--';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '--:--';
+  return pkTimeFmt.format(d);
+}
+
 // Display student name
 document.getElementById("userName").textContent = user.name;
 
@@ -150,6 +165,9 @@ async function loadAttendance() {
       }
 
       updateChart(chartLabels, chartData);
+      
+      // Load History
+      loadAttendanceHistory();
 
       const lowCourses = data.attendance.filter(
         (c) => parseFloat(c.percentage) < 75,
@@ -181,6 +199,57 @@ async function loadAttendance() {
       courseList.innerHTML =
         '<div class="loading-spinner">Error loading attendance data.</div>';
     }
+  }
+}
+
+// ============================================
+// LOAD ATTENDANCE HISTORY
+// ============================================
+
+async function loadAttendanceHistory() {
+  try {
+    const response = await apiCall("/my_attendance_history");
+    if (!response) return;
+
+    const data = await response.json();
+    const historyList = document.getElementById("attendanceHistoryList");
+
+    if (data.status === "success" && data.history && data.history.length > 0) {
+      if (historyList) {
+        historyList.innerHTML = data.history
+          .map((record) => {
+            const isPresent = record.status.toLowerCase() === "present";
+            const statusClass = isPresent ? "status-present" : "status-absent";
+            
+            let modeIcon = "fa-tag";
+            if (record.mode === "Face") modeIcon = "fa-user-check";
+            else if (record.mode === "QR") modeIcon = "fa-qrcode";
+            else if (record.mode === "Teacher") modeIcon = "fa-chalkboard-teacher";
+
+
+            return `
+            <tr>
+                <td>${record.session_date}</td>
+                <td>
+              <div class="fw-bold">${record.course_code}</div>
+              <small class="text-muted">${record.course_name}</small>
+                </td>
+                <td><span class="${statusClass}">${record.status}</span></td>
+                <td><span class="mode-badge">${record.mode || "System"}</span></td>
+                <td><span class="time-text">${formatPkTime(record.marked_at)}</span></td>
+
+            </tr>
+              `;
+          })
+          .join("");
+      }
+    } else {
+      if (historyList) {
+        historyList.innerHTML = '<tr><td colspan="5" class="text-center">No recent records found.</td></tr>';
+      }
+    }
+  } catch (err) {
+    console.error("Error loading history:", err);
   }
 }
 
@@ -382,7 +451,7 @@ async function markAttendance({ sessionId, mode, qrPayload = null }) {
 
     if (data.status === "success") {
       showMessage("Attendance marked successfully!", "success");
-      loadAttendance();
+      setTimeout(loadAttendance, 500);
     } else {
       showMessage("" + (data.message || "Failed to mark attendance"), "error");
     }
@@ -408,19 +477,267 @@ function markQR() {
 }
 
 // ============================================
-// MARK FACE
+// MARK FACE (PHASE 3)
 // ============================================
 
-function markFace() {
-  const sessionIdInput = prompt("📸 Enter Session ID (provided by teacher):");
-  if (!sessionIdInput) return;
-  const sessionId = parseInt(sessionIdInput, 10);
-  if (isNaN(sessionId) || sessionId <= 0) {
-    showMessage("Please enter a valid numeric session ID.", "error");
-    return;
-  }
-  alert("📸 Face Recognition: Please position your face in front of camera");
-  markAttendance({ sessionId, mode: "Face" });
+let faceStream = null;
+let challengeActive = false;
+let currentChallengeIndex = 0;
+let faceLandmarker = null;
+let lastVideoTime = -1;
+
+// Initialize Mediapipe Face Landmarker
+async function initFaceLandmarker() {
+    if (faceLandmarker) return;
+    
+    try {
+        console.log("Initializing AI Models...");
+        if (typeof FilesetResolver === 'undefined' || typeof FaceLandmarker === 'undefined') {
+            console.log("Waiting for Mediapipe scripts to load...");
+            // Wait up to 5 seconds for the module to attach variables to window
+            for (let i = 0; i < 50; i++) {
+                if (typeof FilesetResolver !== 'undefined' && typeof FaceLandmarker !== 'undefined') break;
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        if (typeof FilesetResolver === 'undefined') {
+            throw new Error("Mediapipe FilesetResolver not found");
+        }
+
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+                delegate: "GPU"
+            },
+            outputFaceBlendshapes: true,
+            runningMode: "VIDEO",
+            numFaces: 1
+        });
+        console.log("AI Models loaded successfully");
+    } catch (err) {
+        console.error("AI Model loading error:", err);
+        showMessage("AI Models fail to load. Please check your internet connection.", "error");
+    }
+}
+
+// List of challenges
+const challenges = [
+    { type: 'center', text: 'Keep your face centered', icon: 'fa-user' },
+    { type: 'blink', text: 'Now blink your eyes', icon: 'fa-eye' },
+    { type: 'left', text: 'Turn your face to the LEFT side', icon: 'fa-arrow-left' },
+    { type: 'right', text: 'Turn your face to the RIGHT side', icon: 'fa-arrow-right' }
+];
+
+async function markFace() {
+    document.getElementById('faceModal').classList.remove('hidden');
+    showFaceStep(1);
+    initFaceLandmarker(); // Pre-load in background
+}
+
+function showFaceStep(step) {
+    document.getElementById('faceStep1').classList.add('hidden');
+    document.getElementById('faceStep2').classList.add('hidden');
+    document.getElementById('faceStep3').classList.add('hidden');
+    document.getElementById(`faceStep${step}`).classList.remove('hidden');
+}
+
+function closeFaceModal() {
+    stopCamera();
+    document.getElementById('faceModal').classList.add('hidden');
+    challengeActive = false;
+}
+
+function stopCamera() {
+    if (faceStream) {
+        faceStream.getTracks().forEach(track => track.stop());
+        faceStream = null;
+    }
+}
+
+async function startFaceAttendance() {
+    const sessionId = document.getElementById('faceSessionId').value;
+    if (!sessionId) {
+        showMessage("Please enter Session ID", "error");
+        return;
+    }
+
+    try {
+        faceStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { width: 640, height: 480 } 
+        });
+        const video = document.getElementById('faceVideo');
+        video.srcObject = faceStream;
+        
+        showFaceStep(2);
+        
+        // Wait for video to load
+        video.onloadedmetadata = () => {
+            startAntiSpoofing();
+        };
+    } catch (err) {
+        console.error("Camera error:", err);
+        showMessage("Could not access camera", "error");
+    }
+}
+
+async function startAntiSpoofing() {
+    if (!faceLandmarker) {
+        document.getElementById('challengeText').textContent = "Loading AI Models...";
+        await initFaceLandmarker();
+    }
+    
+    challengeActive = true;
+    currentChallengeIndex = 0;
+    detectFrame();
+}
+
+function updateChallengeUI() {
+    const challenge = challenges[currentChallengeIndex];
+    if (!challenge) return;
+
+    const textEl = document.getElementById('challengeText');
+    const progressEl = document.getElementById('challengeProgress');
+    const progressTextEl = document.getElementById('challengeProgressText');
+    
+    textEl.innerHTML = `<i class="fas ${challenge.icon} me-2"></i> ${challenge.text}`;
+    
+    const progress = (currentChallengeIndex / challenges.length) * 100;
+    progressEl.style.width = `${progress}%`;
+    progressTextEl.textContent = `${Math.round(progress)}%`;
+}
+
+async function detectFrame() {
+    if (!challengeActive) return;
+
+    const video = document.getElementById('faceVideo');
+    if (video.readyState < 2) {
+        requestAnimationFrame(detectFrame);
+        return;
+    }
+
+    let startTimeMs = performance.now();
+    if (lastVideoTime !== video.currentTime) {
+        lastVideoTime = video.currentTime;
+        const results = faceLandmarker.detectForVideo(video, startTimeMs);
+
+        if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+            const landmarks = results.faceLandmarks[0];
+            const blendshapes = results.faceBlendshapes[0].categories;
+            
+            // Logic for each challenge
+            const challenge = challenges[currentChallengeIndex];
+            let success = false;
+
+            if (challenge.type === 'center') {
+                // Check if face is roughly centered
+                const nose = landmarks[1];
+                if (nose.x > 0.3 && nose.x < 0.7) success = true;
+            } 
+            else if (challenge.type === 'blink') {
+                // Detect blink using blendshapes
+                const eyeBlinkLeft = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft').score;
+                const eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight').score;
+                if (eyeBlinkLeft > 0.4 || eyeBlinkRight > 0.4) success = true;
+            }
+            else if (challenge.type === 'left') {
+                // Detect head turn left
+                const nose = landmarks[1];
+                const leftEye = landmarks[33];
+                const rightEye = landmarks[263];
+                // If nose is closer to right eye, head is turned left
+                if (Math.abs(nose.x - rightEye.x) < Math.abs(nose.x - leftEye.x) * 0.6) success = true;
+            }
+            else if (challenge.type === 'right') {
+                // Detect head turn right
+                const nose = landmarks[1];
+                const leftEye = landmarks[33];
+                const rightEye = landmarks[263];
+                if (Math.abs(nose.x - leftEye.x) < Math.abs(nose.x - rightEye.x) * 0.6) success = true;
+            }
+
+            if (success) {
+                const textEl = document.getElementById('challengeText');
+                textEl.style.borderColor = '#2ecc71';
+                textEl.innerHTML = `<i class="fas fa-check-circle me-2"></i> Good!`;
+                
+                challengeActive = false; // Pause detection
+                setTimeout(() => {
+                    currentChallengeIndex++;
+                    if (currentChallengeIndex < challenges.length) {
+                        challengeActive = true;
+                        updateChallengeUI();
+                        detectFrame();
+                    } else {
+                        // All challenges complete
+                        finishChallenges();
+                    }
+                }, 1000);
+                return;
+            }
+        }
+    }
+
+    updateChallengeUI();
+    requestAnimationFrame(detectFrame);
+}
+
+function finishChallenges() {
+    challengeActive = false;
+    document.getElementById('challengeProgress').style.width = '100%';
+    document.getElementById('challengeProgressText').textContent = '100%';
+    document.getElementById('challengeText').innerHTML = '<i class="fas fa-sync fa-spin me-2"></i> Matching Face...';
+    
+    captureAndMatch();
+}
+
+async function captureAndMatch() {
+    const video = document.getElementById('faceVideo');
+    const canvas = document.getElementById('faceCanvas');
+    const context = canvas.getContext('2d');
+    
+    // Ensure video is ready
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+        console.log("Video not ready for capture, waiting...");
+        setTimeout(captureAndMatch, 500);
+        return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw and capture with high quality
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    const sessionId = document.getElementById('faceSessionId').value;
+
+    try {
+        const response = await apiCall('/api/mark_face_attendance', {
+            method: 'POST',
+            body: JSON.stringify({
+                session_id: sessionId,
+                image: imageData
+            })
+        });
+
+        const data = await response.json();
+        if (data.status === 'success') {
+            showFaceStep(3);
+            setTimeout(loadAttendance, 500); // Refresh dashboard stats with small delay
+        } else {
+            showMessage(data.message || "Face matching failed", "error");
+            showFaceStep(1);
+            stopCamera();
+        }
+    } catch (err) {
+        console.error("Match error:", err);
+        showMessage("Error matching face", "error");
+        showFaceStep(1);
+        stopCamera();
+    }
 }
 
 // ============================================

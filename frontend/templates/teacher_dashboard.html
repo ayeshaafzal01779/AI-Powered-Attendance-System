@@ -59,8 +59,8 @@
                     <button class="mode-btn" onclick="selectMode('QR', this)">
                         <i class="fas fa-qrcode"></i> QR Code
                     </button>
-                    <button class="mode-btn mode-btn-disabled" type="button" disabled title="Face Recognition is coming soon">
-                        <i class="fas fa-camera"></i> Face Recognition (Soon)
+                    <button class="mode-btn" onclick="selectMode('Face', this)">
+                        <i class="fas fa-camera"></i> Face Recognition
                     </button>
                     <button class="mode-btn" onclick="selectMode('Manual', this)">
                         <i class="fas fa-edit"></i> Manual Entry
@@ -114,14 +114,35 @@
 
             <!-- Face Section -->
             <div id="faceSection" class="face-section hidden">
-                <div class="feature-card">
-                    <div class="feature-header">
-                        <h3><i class="fas fa-camera"></i> Face Recognition</h3>
+                <div class="qr-card">
+                    <div class="qr-header">
+                        <h3><i class="fas fa-camera"></i> Face Recognition Mode</h3>
                     </div>
-                    <div class="feature-body">
-                        <i class="fas fa-face-smile fa-4x"></i>
-                        <p>Face Recognition Feature</p>
-                        <small>Coming soon</small>
+                    
+                    <div class="qr-body">
+                        <div class="qr-display">
+                            <div id="facePlaceholder" class="qr-placeholder">
+                                <i class="fas fa-user-shield fa-5x mb-3 text-primary"></i>
+                                <h5>Face Recognition Active</h5>
+                                <p>Students can now mark attendance using their camera.</p>
+                                <small>Provide the <strong>Session ID</strong> to your students.</small>
+                            </div>
+                        </div>
+                        
+                        <div class="qr-controls border-0">
+                            <div class="d-flex justify-content-center gap-3 w-100">
+                                <button id="startFaceBtn" class="btn btn-primary btn-lg flex-grow-1" style="max-width: 300px;" onclick="activateFaceMode()">
+                                    <i class="fas fa-play me-2"></i> Activate Face Mode
+                                </button>
+                                <button id="stopFaceBtn" class="btn btn-danger btn-lg flex-grow-1 hidden" style="max-width: 300px;" onclick="deactivateFaceMode()">
+                                    <i class="fas fa-stop me-2"></i> Stop Face Mode
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <p id="faceMsg" class="qr-message">
+                            <i class="fas fa-info-circle"></i> Click "Activate Face Mode" to begin.
+                        </p>
                     </div>
                 </div>
             </div>
