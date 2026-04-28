@@ -1,0 +1,83 @@
+-- =========================================================
+-- STEP 1: CLEAN SLATE + DEPARTMENTS + PROGRAMS + SEMESTERS
+-- TriAttendanceDB — Semester-wise System
+-- Run this FIRST after schema.sql + hardening.sql
+-- =========================================================
+USE TriAttendanceDB;
+
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE fines;
+TRUNCATE TABLE attendance_records;
+TRUNCATE TABLE attendance_sessions;
+TRUNCATE TABLE student_enrollment;
+TRUNCATE TABLE sections;
+TRUNCATE TABLE course_semester;
+TRUNCATE TABLE facial_data;
+
+SET SQL_SAFE_UPDATES = 0;
+DELETE FROM users WHERE role IN ('Teacher','Student');
+DELETE FROM users WHERE email != 'admin@tria.com';
+SET SQL_SAFE_UPDATES = 1;
+
+TRUNCATE TABLE courses;
+TRUNCATE TABLE semesters;
+TRUNCATE TABLE programs;
+TRUNCATE TABLE departments;
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- =========================================================
+-- ADMIN USER (keep existing or re-insert)
+-- Password: admin123 (bcrypt)
+-- =========================================================
+INSERT IGNORE INTO users (email, password, role, full_name, phone)
+VALUES ('admin@tria.com', '$2b$12$eQur4nCSdUD.MwQKMLm4qeETULDHykrjRh4qRqzM/u0Fp.d4Y/jrO', 'Admin', 'System Administrator', '03000000000');
+
+-- Second Admin (real email)
+INSERT IGNORE INTO users (email, password, role, full_name, phone)
+VALUES ('aqsahashmi483@gmail.com', '$2b$12$eQur4nCSdUD.MwQKMLm4qeETULDHykrjRh4qRqzM/u0Fp.d4Y/jrO', 'Admin', 'Aqsa Hashmi', '03000000001');
+
+-- =========================================================
+-- DEPARTMENTS
+-- =========================================================
+INSERT INTO departments (dept_code, dept_name, hod_name, contact_email) VALUES
+('CS', 'Computer Science',        'Dr. Ahmed Raza',    'cs@tria.edu'),
+('IT', 'Information Technology',  'Dr. Ali Haider',    'it@tria.edu'),
+('SE', 'Software Engineering',    'Dr. Umar Farooq',   'se@tria.edu'),
+('AI', 'Artificial Intelligence', 'Dr. Hina Naeem',    'ai@tria.edu');
+
+-- =========================================================
+-- PROGRAMS (one BS program per dept)
+-- =========================================================
+INSERT INTO programs (dept_id, program_code, program_name, duration, degree)
+SELECT dept_id,
+       CONCAT('BS-', dept_code),
+       CONCAT('Bachelor of Science in ', dept_name),
+       8, 'BS'
+FROM departments;
+
+-- =========================================================
+-- SEMESTERS: 2, 4, 6, 8 per program (4 active semesters)
+-- All marked is_active = TRUE for data purposes
+-- =========================================================
+INSERT INTO semesters (program_id, semester_number, semester_name, start_date, end_date, is_active)
+SELECT p.program_id, s.sem_num, s.sem_name, s.s_date, s.e_date, TRUE
+FROM programs p
+CROSS JOIN (
+    SELECT 2 AS sem_num, 'Semester 2 (Spring 2024)' AS sem_name, '2024-02-01' AS s_date, '2024-06-30' AS e_date
+    UNION ALL
+    SELECT 4,            'Semester 4 (Fall 2024)',               '2024-09-01',             '2025-01-15'
+    UNION ALL
+    SELECT 6,            'Semester 6 (Spring 2025)',             '2025-02-01',             '2025-06-30'
+    UNION ALL
+    SELECT 8,            'Semester 8 (Fall 2025)',               '2025-09-01',             '2026-01-15'
+) s;
+
+-- =========================================================
+-- VERIFY
+-- =========================================================
+SELECT 'STEP 1 COMPLETE' AS status;
+SELECT dept_code, dept_name FROM departments;
+SELECT p.program_code, s.semester_number, s.semester_name
+FROM semesters s
+JOIN programs p ON p.program_id = s.program_id
+ORDER BY p.program_code, s.semester_number;

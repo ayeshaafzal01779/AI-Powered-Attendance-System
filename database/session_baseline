@@ -1,0 +1,78 @@
+-- =========================================================
+-- STEP 6: ATTENDANCE SESSIONS + BASELINE RECORDS
+-- 30 past sessions per section (closed)
+-- 1 active session today per section
+-- All students marked Present as baseline
+-- =========================================================
+USE TriAttendanceDB;
+
+-- =========================================================
+-- GENERATE 30 PAST SESSIONS PER SECTION
+-- =========================================================
+DROP TEMPORARY TABLE IF EXISTS day_offsets;
+CREATE TEMPORARY TABLE day_offsets (d INT);
+INSERT INTO day_offsets VALUES
+(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),
+(11),(12),(13),(14),(15),(16),(17),(18),(19),(20),
+(21),(22),(23),(24),(25),(26),(27),(28),(29),(30);
+
+-- Past closed sessions (30 per section)
+INSERT INTO attendance_sessions (section_id, teacher_id, session_date, start_time, end_time, session_token, mode, is_active)
+SELECT
+    sec.section_id,
+    sec.teacher_id,
+    DATE_SUB(CURDATE(), INTERVAL do_.d DAY),
+    CONCAT(DATE_SUB(CURDATE(), INTERVAL do_.d DAY), ' 09:00:00'),
+    CONCAT(DATE_SUB(CURDATE(), INTERVAL do_.d DAY), ' 10:00:00'),
+    UUID(),
+    'Hybrid',
+    FALSE
+FROM sections sec
+CROSS JOIN day_offsets do_
+WHERE NOT EXISTS (
+    SELECT 1 FROM attendance_sessions s2
+    WHERE s2.section_id = sec.section_id
+      AND s2.session_date = DATE_SUB(CURDATE(), INTERVAL do_.d DAY)
+);
+
+-- Today's active sessions
+INSERT INTO attendance_sessions (section_id, teacher_id, session_date, start_time, session_token, mode, is_active)
+SELECT sec.section_id, sec.teacher_id, CURDATE(), NOW(), UUID(), 'Hybrid', TRUE
+FROM sections sec
+WHERE NOT EXISTS (
+    SELECT 1 FROM attendance_sessions s2
+    WHERE s2.section_id = sec.section_id
+      AND s2.session_date = CURDATE()
+      AND s2.is_active = TRUE
+);
+
+-- =========================================================
+-- BASELINE: ALL STUDENTS PRESENT FOR ALL PAST SESSIONS
+-- =========================================================
+INSERT INTO attendance_records
+    (session_id, student_id, section_id, attendance_date, mode, status, sync_status, marked_at)
+SELECT
+    s.session_id,
+    se.student_id,
+    s.section_id,
+    s.session_date,
+    'QR',
+    'Present',
+    'Synced',
+    NOW()
+FROM attendance_sessions s
+JOIN student_enrollment se ON se.section_id = s.section_id
+WHERE s.is_active = FALSE
+  AND NOT EXISTS (
+      SELECT 1 FROM attendance_records ar
+      WHERE ar.session_id = s.session_id AND ar.student_id = se.student_id
+  );
+
+-- =========================================================
+-- VERIFY
+-- =========================================================
+SELECT 'STEP 6 COMPLETE' AS status;
+SELECT
+    (SELECT COUNT(*) FROM attendance_sessions WHERE is_active=FALSE) AS past_sessions,
+    (SELECT COUNT(*) FROM attendance_sessions WHERE is_active=TRUE)  AS active_sessions,
+    (SELECT COUNT(*) FROM attendance_records)                        AS attendance_records;
