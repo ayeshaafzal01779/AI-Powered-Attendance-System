@@ -1,0 +1,318 @@
+-- =========================================================
+-- STEP 7: MIXED ATTENDANCE DATA (FIXED FOR GMAIL STUDENTS)
+-- Each Gmail student gets varied attendance across their 5 courses
+-- =========================================================
+USE TriAttendanceDB;
+SET SQL_SAFE_UPDATES = 0;
+
+-- =========================================================
+-- HELPER PROCEDURE to mark N latest sessions absent
+-- =========================================================
+DROP PROCEDURE IF EXISTS mark_absent;
+DELIMITER $$
+CREATE PROCEDURE mark_absent(
+    IN p_email    VARCHAR(120),
+    IN p_course   VARCHAR(30),
+    IN p_absent_days INT
+)
+BEGIN
+    UPDATE attendance_records ar
+    JOIN attendance_sessions s ON s.session_id = ar.session_id
+    JOIN sections sec ON sec.section_id = s.section_id
+    JOIN course_semester cs ON cs.cs_id = sec.cs_id
+    JOIN courses c ON c.course_id = cs.course_id
+    SET ar.status = 'Absent', ar.mode = 'Manual'
+    WHERE ar.student_id = (SELECT user_id FROM users WHERE email = p_email)
+      AND c.course_code = p_course
+      AND s.is_active = FALSE
+      AND s.session_id IN (
+          SELECT session_id FROM (
+              SELECT s2.session_id
+              FROM attendance_sessions s2
+              JOIN sections sec2 ON sec2.section_id = s2.section_id
+              JOIN course_semester cs2 ON cs2.cs_id = sec2.cs_id
+              JOIN courses c2 ON c2.course_id = cs2.course_id
+              JOIN student_enrollment se2 ON se2.section_id = sec2.section_id
+              WHERE se2.student_id = (SELECT user_id FROM users WHERE email = p_email)
+                AND c2.course_code = p_course
+                AND s2.is_active = FALSE
+              ORDER BY s2.session_date DESC
+              LIMIT p_absent_days
+          ) AS sub
+      );
+END$$
+DELIMITER ;
+
+-- =========================================================
+-- 90% ATTENDANCE GROUP (absent 3 of 30 sessions)
+-- =========================================================
+-- CS Sem 2
+CALL mark_absent('sarakhan.cs2@student.com',  'CS201', 3);
+CALL mark_absent('hirafatima.cs2@student.com',  'CS202', 3);
+CALL mark_absent('bilalyousuf.cs2@student.com', 'CS203', 3);
+-- CS Sem 4
+CALL mark_absent('zaramaqbool.cs4@student.com',  'CS401', 3);
+CALL mark_absent('humashafiq.cs4@student.com',  'CS402', 3);
+-- CS Sem 6
+CALL mark_absent('kashifmalik.cs6@student.com',  'CS601', 3);
+CALL mark_absent('tahaidrees.cs6@student.com',  'CS602', 3);
+-- CS Sem 8
+CALL mark_absent('mehrozsaeed.cs8@student.com',  'CS801', 3);
+CALL mark_absent('hoorfatima.cs8@student.com',  'CS802', 3);
+
+-- IT Sem 2
+CALL mark_absent('sarabibi.it2@student.com',  'IT201', 3);
+CALL mark_absent('hirabaig.it2@student.com',  'IT202', 3);
+-- IT Sem 4
+CALL mark_absent('zaraahmed.it4@student.com',  'IT401', 3);
+CALL mark_absent('humabibi.it4@student.com',   'IT402', 3);
+-- IT Sem 6
+CALL mark_absent('kashifahmed.it6@student.com',   'IT601', 3);
+-- IT Sem 8
+CALL mark_absent('rubiashah.it8@student.com',   'IT801', 3);
+CALL mark_absent('muzzammilawan.it8@student.com',   'IT802', 3);
+
+-- SE Sem 2
+CALL mark_absent('saraiqbal.se2@student.com',  'SE201', 3);
+CALL mark_absent('hiraasif.se2@student.com',   'SE202', 3);
+-- SE Sem 4
+CALL mark_absent('zaratariq.se4@student.com',   'SE401', 3);
+-- SE Sem 6
+CALL mark_absent('kashifnoor.se6@student.com',   'SE601', 3);
+-- SE Sem 8
+CALL mark_absent('rubiaaqeel.se8@student.com',   'SE801', 3);
+
+-- AI Sem 2
+CALL mark_absent('sararehman.ai2@student.com',  'AI201', 3);
+-- AI Sem 4
+CALL mark_absent('zararehman.ai4@student.com',   'AI401', 3);
+-- AI Sem 6
+CALL mark_absent('rubinanawaz.ai6@student.com',   'AI601', 3);
+-- AI Sem 8
+CALL mark_absent('rubiatariq.ai8@student.com',   'AI801', 3);
+
+-- =========================================================
+-- 80% ATTENDANCE GROUP (absent 6 of 30 sessions)
+-- =========================================================
+-- CS
+CALL mark_absent('fatimahassan.cs2@student.com', 'CS201', 6);
+CALL mark_absent('sobiamalik.cs2@student.com',  'CS204', 6);
+CALL mark_absent('saimariaz.cs4@student.com', 'CS403', 6);
+CALL mark_absent('imranbutt.cs4@student.com', 'CS404', 6);
+CALL mark_absent('munisraza.cs6@student.com',  'CS603', 6);
+CALL mark_absent('lubnashah.cs6@student.com', 'CS604', 6);
+CALL mark_absent('muzzammilshah.cs8@student.com',  'CS803', 6);
+CALL mark_absent('daniyalkhan.cs8@student.com',  'CS802', 6);
+
+-- IT
+CALL mark_absent('fatimaakhtar.it2@student.com',  'IT201', 6);
+CALL mark_absent('sobiashah.it2@student.com',   'IT204', 6);
+CALL mark_absent('sairaliaqat.it4@student.com',   'IT403', 6);
+CALL mark_absent('imranshah.it4@student.com',   'IT404', 6);
+CALL mark_absent('lubnaarshad.it6@student.com',   'IT603', 6);
+CALL mark_absent('rizwanshah.it6@student.com',   'IT604', 6);
+CALL mark_absent('ghazalanoor.it8@student.com',   'IT803', 6);
+CALL mark_absent('hasanmirza.it8@student.com',   'IT802', 6);
+
+-- SE
+CALL mark_absent('fatimaraza.se2@student.com',   'SE201', 6);
+CALL mark_absent('sobiatariq.se2@student.com',   'SE204', 6);
+CALL mark_absent('sairaahmed.se4@student.com',   'SE403', 6);
+CALL mark_absent('asmarehman.se4@student.com',   'SE404', 6);
+CALL mark_absent('lubnaqureshi.se6@student.com',   'SE603', 6);
+CALL mark_absent('farazali.se6@student.com',   'SE604', 6);
+CALL mark_absent('foziabutt.se8@student.com',   'SE803', 6);
+CALL mark_absent('shafiqkhan.se8@student.com',   'SE802', 6);
+
+-- AI
+CALL mark_absent('fatimatariq.ai2@student.com',   'AI201', 6);
+CALL mark_absent('sobiaali.ai2@student.com',   'AI202', 6);
+CALL mark_absent('sairarehman.ai4@student.com',   'AI401', 6);
+CALL mark_absent('asmasaeed.ai4@student.com',   'AI402', 6);
+CALL mark_absent('lubnasaeed.ai6@student.com',   'AI601', 6);
+CALL mark_absent('mishanawaz.ai6@student.com',   'AI602', 6);
+CALL mark_absent('foziajaved.ai8@student.com',   'AI801', 6);
+CALL mark_absent('shafiq.iqbal.ai8@student.com',   'AI802', 6);
+
+-- =========================================================
+-- LOW ATTENDANCE GROUP < 75% (Regular students)
+-- =========================================================
+
+-- ~73% (absent 8)
+CALL mark_absent('rehanshahid.cs2@student.com', 'CS205', 8);
+CALL mark_absent('rehanawan.it2@student.com',   'IT205', 8);
+CALL mark_absent('rehanbutt.se2@student.com',   'SE205', 8);
+CALL mark_absent('rehaniqbal.ai2@student.com',   'AI205', 8);
+
+-- ~60% (absent 12)
+CALL mark_absent('amnabutt.cs2@student.com',  'CS201', 12);
+CALL mark_absent('amnajaved.it2@student.com',  'IT201', 12);
+CALL mark_absent('amnajaved.se2@student.com',   'SE201', 12);
+CALL mark_absent('amnarehman.ai2@student.com',   'AI201', 12);
+
+-- ~47% (absent 16)
+CALL mark_absent('nomanali.cs4@student.com', 'CS401', 16);
+CALL mark_absent('nomanchaudhry.it4@student.com', 'IT401', 16);
+CALL mark_absent('nomanbutt.se4@student.com', 'SE401', 16);
+CALL mark_absent('nomanrehman.ai4@student.com', 'AI401', 16);
+
+-- ~33% (absent 20)
+CALL mark_absent('anasmalik.cs6@student.com', 'CS601', 20);
+CALL mark_absent('anasrehman.it6@student.com', 'IT601', 20);
+CALL mark_absent('anasjaved.se6@student.com', 'SE601', 20);
+CALL mark_absent('anassaeed.ai6@student.com', 'AI601', 20);
+
+-- ~20% (absent 24)
+CALL mark_absent('saifullah.cs6@student.com', 'CS602', 24);
+CALL mark_absent('saifnawaz.it6@student.com', 'IT602', 24);
+CALL mark_absent('saifrehman.se6@student.com', 'SE602', 24);
+CALL mark_absent('saifjaved.ai6@student.com', 'AI602', 24);
+
+-- ~7% (absent 28)
+CALL mark_absent('dihaarshad.cs6@student.com', 'CS605', 28);
+CALL mark_absent('dihamalik.it6@student.com', 'IT605', 28);
+CALL mark_absent('dihanawaz.se6@student.com', 'SE605', 28);
+CALL mark_absent('diharehman.ai6@student.com', 'AI605', 28);
+
+-- Sem 4 and Sem 8 low attendance
+CALL mark_absent('junaidshah.cs4@student.com', 'CS405', 18);
+CALL mark_absent('junaidsaeed.it4@student.com', 'IT405', 18);
+CALL mark_absent('junaidiqbal.se4@student.com', 'SE405', 18);
+CALL mark_absent('junaidkhan.ai4@student.com', 'AI405', 18);
+
+CALL mark_absent('tubarashid.cs8@student.com', 'CS804', 22);
+CALL mark_absent('tubanawaz.it8@student.com', 'IT804', 22);
+CALL mark_absent('tubaiqbal.se8@student.com', 'SE804', 22);
+CALL mark_absent('tubajaved.ai8@student.com', 'AI804', 22);
+
+-- =========================================================
+-- GMAIL STUDENTS - MIXED ATTENDANCE ACROSS ALL 5 COURSES
+-- Each Gmail student gets varied attendance: 100%, 85%, 78%, 66%, 40%
+-- =========================================================
+
+-- arhamgohar07@gmail.com (CS Sem 6) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('arhamgohar07@gmail.com', 'CS601', 0);   -- 100% (Perfect)
+CALL mark_absent('arhamgohar07@gmail.com', 'CS602', 4);   -- ~87% (4 absent)
+CALL mark_absent('arhamgohar07@gmail.com', 'CS603', 7);   -- ~77% (7 absent)
+CALL mark_absent('arhamgohar07@gmail.com', 'CS604', 10);  -- ~67% (10 absent)
+CALL mark_absent('arhamgohar07@gmail.com', 'CS605', 18);  -- ~40% (18 absent)
+
+-- aqsahashmi1235@gmail.com (SE Sem 6) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('aqsahashmi1235@gmail.com', 'SE601', 0);   -- 100%
+CALL mark_absent('aqsahashmi1235@gmail.com', 'SE602', 4);   -- ~87%
+CALL mark_absent('aqsahashmi1235@gmail.com', 'SE603', 7);   -- ~77%
+CALL mark_absent('aqsahashmi1235@gmail.com', 'SE604', 10);  -- ~67%
+CALL mark_absent('aqsahashmi1235@gmail.com', 'SE605', 18);  -- ~40%
+
+-- meerabgohar23@gmail.com (IT Sem 8) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('meerabgohar23@gmail.com', 'IT801', 0);   -- 100%
+CALL mark_absent('meerabgohar23@gmail.com', 'IT802', 4);   -- ~87%
+CALL mark_absent('meerabgohar23@gmail.com', 'IT803', 7);   -- ~77%
+CALL mark_absent('meerabgohar23@gmail.com', 'IT804', 10);  -- ~67%
+CALL mark_absent('meerabgohar23@gmail.com', 'IT805', 18);  -- ~40%
+
+-- hashmiaqsa12@gmail.com (IT Sem 8) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('hashmiaqsa12@gmail.com', 'IT801', 0);   -- 100%
+CALL mark_absent('hashmiaqsa12@gmail.com', 'IT802', 4);   -- ~87%
+CALL mark_absent('hashmiaqsa12@gmail.com', 'IT803', 7);   -- ~77%
+CALL mark_absent('hashmiaqsa12@gmail.com', 'IT804', 10);  -- ~67%
+CALL mark_absent('hashmiaqsa12@gmail.com', 'IT805', 18);  -- ~40%
+
+-- Inshalmalik6600@gmail.com (SE Sem 8) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('Inshalmalik6600@gmail.com', 'SE801', 0);   -- 100%
+CALL mark_absent('Inshalmalik6600@gmail.com', 'SE802', 4);   -- ~87%
+CALL mark_absent('Inshalmalik6600@gmail.com', 'SE803', 7);   -- ~77%
+CALL mark_absent('Inshalmalik6600@gmail.com', 'SE804', 10);  -- ~67%
+CALL mark_absent('Inshalmalik6600@gmail.com', 'SE805', 18);  -- ~40%
+
+-- malikafzal4040@gmail.com (SE Sem 8) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('malikafzal4040@gmail.com', 'SE801', 0);   -- 100%
+CALL mark_absent('malikafzal4040@gmail.com', 'SE802', 4);   -- ~87%
+CALL mark_absent('malikafzal4040@gmail.com', 'SE803', 7);   -- ~77%
+CALL mark_absent('malikafzal4040@gmail.com', 'SE804', 10);  -- ~67%
+CALL mark_absent('malikafzal4040@gmail.com', 'SE805', 18);  -- ~40%
+
+-- hashmiahmar47@gmail.com (AI Sem 8) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('hashmiahmar47@gmail.com', 'AI801', 0);   -- 100%
+CALL mark_absent('hashmiahmar47@gmail.com', 'AI802', 4);   -- ~87%
+CALL mark_absent('hashmiahmar47@gmail.com', 'AI803', 7);   -- ~77%
+CALL mark_absent('hashmiahmar47@gmail.com', 'AI804', 10);  -- ~67%
+CALL mark_absent('hashmiahmar47@gmail.com', 'AI805', 18);  -- ~40%
+
+-- meerabgohar04@gmail.com (AI Sem 8) - Mixed: 100, 85, 78, 66, 40
+CALL mark_absent('meerabgohar04@gmail.com', 'AI801', 0);   -- 100%
+CALL mark_absent('meerabgohar04@gmail.com', 'AI802', 4);   -- ~87%
+CALL mark_absent('meerabgohar04@gmail.com', 'AI803', 7);   -- ~77%
+CALL mark_absent('meerabgohar04@gmail.com', 'AI804', 10);  -- ~67%
+CALL mark_absent('meerabgohar04@gmail.com', 'AI805', 18);  -- ~40%
+
+SET SQL_SAFE_UPDATES = 1;
+DROP PROCEDURE IF EXISTS mark_absent;
+
+-- =========================================================
+-- VERIFY
+-- =========================================================
+SELECT 'STEP 7 COMPLETE' AS status;
+
+-- Quick attendance check: count students per attendance band
+SELECT
+    CASE
+        WHEN pct = 100 THEN '100% (Perfect)'
+        WHEN pct >= 90  THEN '90-99% (Good)'
+        WHEN pct >= 80  THEN '80-89% (OK)'
+        WHEN pct >= 75  THEN '75-79% (Borderline)'
+        ELSE '<75% (Low / At Risk)'
+    END AS band,
+    COUNT(*) AS student_course_combos
+FROM (
+    SELECT
+        u.user_id,
+        c.course_code,
+        ROUND(
+            SUM(CASE WHEN ar.status='Present' THEN 1 ELSE 0 END) /
+            NULLIF(COUNT(ar.record_id),0) * 100, 0
+        ) AS pct
+    FROM users u
+    JOIN student_enrollment se ON se.student_id = u.user_id
+    JOIN sections sec ON sec.section_id = se.section_id
+    JOIN course_semester cs ON cs.cs_id = sec.cs_id
+    JOIN courses c ON c.course_id = cs.course_id
+    LEFT JOIN attendance_records ar ON ar.student_id = u.user_id AND ar.section_id = sec.section_id
+    WHERE u.role = 'Student'
+    GROUP BY u.user_id, c.course_code
+) t
+GROUP BY band
+ORDER BY band;
+
+-- Show Gmail students attendance specifically
+SELECT 
+    u.email,
+    u.full_name,
+    d.dept_code,
+    c.course_code,
+    COUNT(ar.record_id) AS total_sessions,
+    SUM(CASE WHEN ar.status='Present' THEN 1 ELSE 0 END) AS present_count,
+    SUM(CASE WHEN ar.status='Absent' THEN 1 ELSE 0 END) AS absent_count,
+    ROUND(
+        SUM(CASE WHEN ar.status='Present' THEN 1 ELSE 0 END) /
+        NULLIF(COUNT(ar.record_id),0) * 100, 0
+    ) AS attendance_pct
+FROM users u
+JOIN departments d ON d.dept_id = u.dept_id
+JOIN student_enrollment se ON se.student_id = u.user_id
+JOIN sections sec ON sec.section_id = se.section_id
+JOIN course_semester cs ON cs.cs_id = sec.cs_id
+JOIN courses c ON c.course_id = cs.course_id
+LEFT JOIN attendance_records ar ON ar.student_id = u.user_id AND ar.section_id = sec.section_id
+WHERE u.email IN (
+    'hashmiaqsa12@gmail.com',
+    'hashmiahmar47@gmail.com',
+    'aqsahashmi1235@gmail.com',
+    'meerabgohar23@gmail.com',
+    'meerabgohar04@gmail.com',
+    'arhamgohar07@gmail.com',
+    'Inshalmalik6600@gmail.com',
+    'malikafzal4040@gmail.com'
+)
+GROUP BY u.email, u.full_name, d.dept_code, c.course_code
+ORDER BY u.email, d.dept_code, c.course_code;
