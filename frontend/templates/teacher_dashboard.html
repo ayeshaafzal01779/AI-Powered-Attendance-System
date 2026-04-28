@@ -6,6 +6,7 @@
     <title>Teacher Dashboard | Tri-AI Attendance System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="/static/css/teacher-dashboard.css">
 </head>
 <body>
@@ -39,6 +40,7 @@
             <div id="activeSession" class="active-session hidden">
                 <div class="session-info">
                     <div class="session-title">
+                        <span class="live-indicator"></span>
                         <i class="fas fa-video"></i> Active Session: <span id="activeCourseName">---</span>
                     </div>
                     <div class="present-count">
@@ -78,35 +80,37 @@
                     <div class="qr-body">
                         <div class="qr-display">
                             <div id="qrPlaceholder" class="qr-placeholder">
-                                <i class="fas fa-qrcode fa-5x mb-3"></i>
-                                <p>No active QR code</p>
-                                <small>Select QR mode and click "Start QR"</small>
+                                <i class="fas fa-qrcode fa-4x mb-3" style="color: #2980b9; opacity: 0.3;"></i>
+                                <p class="fw-bold mb-1">Ready to Start</p>
+                                <small>Generate a secure QR code for students</small>
                             </div>
                             <img id="qrImg" class="hidden" src="" alt="QR Code">
                         </div>
                         
-                        <div class="qr-controls">
-                            <div class="qr-timer">
-                                <i class="fas fa-hourglass-half"></i>
-                                <span>Refresh in:</span>
-                                <span class="timer-num" id="qrCountdown">--</span>
-                                <span>sec</span>
-                            </div>
-                            <div class="qr-buttons">
-                                <button id="startQrBtn" class="btn-start-qr" onclick="activateQRMode()">
-                                    <i class="fas fa-play"></i> Start QR
-                                </button>
-                                <button id="stopQrBtn" class="btn-stop-qr hidden" onclick="deactivateQRMode()">
-                                    <i class="fas fa-stop"></i> Stop QR
-                                </button>
-                                <button id="refreshQrBtn" class="btn-refresh-qr hidden" onclick="manualRefreshQR()">
-                                    <i class="fas fa-sync-alt"></i> Refresh
-                                </button>
+                        <div class="qr-controls border-0 py-3 px-4 rounded-4" style="background: #f8fafc;">
+                            <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-3">
+                                <div class="qr-timer shadow-sm border-0">
+                                    <i class="fas fa-clock"></i>
+                                    <span class="timer-num" id="qrCountdown">--</span>
+                                    <span class="text-muted small fw-bold">SEC</span>
+                                </div>
+                                
+                                <div class="qr-buttons">
+                                    <button id="startQrBtn" class="btn-start-qr px-4 py-2 shadow-sm" onclick="activateQRMode()">
+                                        <i class="fas fa-play me-2"></i> Start QR
+                                    </button>
+                                    <button id="stopQrBtn" class="btn-stop-qr hidden px-4 py-2 shadow-sm" onclick="deactivateQRMode()">
+                                        <i class="fas fa-stop me-2"></i> Stop
+                                    </button>
+                                    <button id="refreshQrBtn" class="btn-refresh-qr hidden px-3 py-2" onclick="manualRefreshQR()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
-                        <p id="qrMsg" class="qr-message">
-                            <i class="fas fa-info-circle"></i> Select QR mode and click "Start QR"
+                        <p id="qrMsg" class="qr-message w-100 py-2 border-0" style="background: #ebf5ff; color: #2980b9; font-weight: 500;">
+                            <i class="fas fa-info-circle me-2"></i> Ready to generate QR code.
                         </p>
                     </div>
                 </div>
@@ -120,27 +124,30 @@
                     </div>
                     
                     <div class="qr-body">
-                        <div class="qr-display">
-                            <div id="facePlaceholder" class="qr-placeholder">
-                                <i class="fas fa-user-shield fa-5x mb-3 text-primary"></i>
-                                <h5>Face Recognition Active</h5>
-                                <p>Students can now mark attendance using their camera.</p>
-                                <small>Provide the <strong>Session ID</strong> to your students.</small>
+                        <div class="qr-display w-100">
+                            <div id="facePlaceholder" class="qr-placeholder w-100" style="height: 250px;">
+                                <i class="fas fa-user-shield fa-4x mb-3 text-primary"></i>
+                                <h5>Face Recognition Mode Active</h5>
+                                <p class="px-4 text-center">Students can now mark attendance using their device cameras by providing the Session ID.</p>
+                                <div class="session-id-display mt-2 p-2 bg-light border rounded">
+                                    <span class="text-muted small">Share this ID:</span>
+                                    <strong class="text-primary ms-1" id="faceSessionIdDisplay">--</strong>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="qr-controls border-0">
-                            <div class="d-flex justify-content-center gap-3 w-100">
-                                <button id="startFaceBtn" class="btn btn-primary btn-lg flex-grow-1" style="max-width: 300px;" onclick="activateFaceMode()">
+                        <div class="qr-controls border-0 bg-transparent p-0">
+                            <div class="d-flex flex-column align-items-center gap-3 w-100">
+                                <button id="startFaceBtn" class="btn btn-primary btn-lg w-100" style="max-width: 400px; border-radius: 12px; font-weight: 600;" onclick="activateFaceMode()">
                                     <i class="fas fa-play me-2"></i> Activate Face Mode
                                 </button>
-                                <button id="stopFaceBtn" class="btn btn-danger btn-lg flex-grow-1 hidden" style="max-width: 300px;" onclick="deactivateFaceMode()">
+                                <button id="stopFaceBtn" class="btn btn-danger btn-lg w-100 hidden" style="max-width: 400px; border-radius: 12px; font-weight: 600;" onclick="deactivateFaceMode()">
                                     <i class="fas fa-stop me-2"></i> Stop Face Mode
                                 </button>
                             </div>
                         </div>
                         
-                        <p id="faceMsg" class="qr-message">
+                        <p id="faceMsg" class="qr-message w-100">
                             <i class="fas fa-info-circle"></i> Click "Activate Face Mode" to begin.
                         </p>
                     </div>
@@ -199,8 +206,11 @@
                 <div class="attendance-header">
                     <h3><i class="fas fa-users"></i> Attendance List</h3>
                     <div class="attendance-header-actions">
-                        <button class="download-sheet-btn" onclick="downloadSessionSheet()" type="button" title="Download Excel sheet">
-                            <i class="fas fa-file-excel"></i> Download Sheet
+                        <button class="download-sheet-btn" onclick="downloadSessionSheet('excel')" type="button" title="Download Excel sheet">
+                            <i class="fas fa-file-excel"></i> Excel
+                        </button>
+                        <button class="download-pdf-btn" onclick="downloadSessionSheet('pdf')" type="button" title="Download PDF report">
+                            <i class="fas fa-file-pdf"></i> PDF
                         </button>
                         <button class="close-session-btn" onclick="closeSession()" type="button">
                             <i class="fas fa-power-off"></i> Close Session

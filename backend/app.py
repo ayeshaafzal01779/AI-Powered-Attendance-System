@@ -244,22 +244,29 @@ def get_low_attendance():
             c.course_code,
             c.course_name,
             COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) as present_days,
-            COUNT(DISTINCT ar.record_id) as total_sessions,
+            total_sess.total_sessions,
             ROUND(
                 COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) * 100.0 /
-                NULLIF(COUNT(DISTINCT ar.record_id), 0), 2
+                NULLIF(total_sess.total_sessions, 0), 2
             ) as percentage,
             (SELECT f.status FROM fines f 
              WHERE f.student_id = u.user_id 
              AND f.course_code = c.course_code 
              ORDER BY f.issued_date DESC LIMIT 1) as fine_status
-        FROM attendance_records ar
-        JOIN users u ON ar.student_id = u.user_id
-        JOIN sections sec ON ar.section_id = sec.section_id
+        FROM users u
+        JOIN student_enrollment se ON u.user_id = se.student_id
+        JOIN sections sec ON se.section_id = sec.section_id
         JOIN course_semester cs ON sec.cs_id = cs.cs_id
         JOIN courses c ON cs.course_id = c.course_id
+        JOIN (
+            SELECT section_id, COUNT(*) as total_sessions 
+            FROM attendance_sessions 
+            WHERE is_active = 0
+            GROUP BY section_id
+        ) total_sess ON total_sess.section_id = sec.section_id
+        LEFT JOIN attendance_records ar ON ar.student_id = u.user_id AND ar.section_id = sec.section_id
         WHERE u.role = 'Student'
-        GROUP BY u.user_id, u.full_name, u.email, c.course_code, c.course_name
+        GROUP BY u.user_id, u.full_name, u.email, c.course_code, c.course_name, total_sess.total_sessions
         HAVING percentage < 75
         AND NOT EXISTS (
             SELECT 1 FROM fines f
@@ -935,11 +942,11 @@ def mark_face_attendance():
     try:
         cursor = conn.cursor(dictionary=True)
         
-        # Verify session is active and in Face mode
+        # Verify session is active and in Face or Hybrid mode
         cursor.execute("""
             SELECT session_id, section_id, teacher_id, is_active, mode 
             FROM attendance_sessions 
-            WHERE session_id = %s AND is_active = 1 AND mode = 'Face'
+            WHERE session_id = %s AND is_active = 1 AND mode IN ('Face', 'Hybrid')
         """, (session_id,))
         session_row = cursor.fetchone()
         
@@ -1581,8 +1588,8 @@ def teacher_session_report():
 
     if not session_id:
         return jsonify({"status": "error", "message": "Session ID is required"}), 400
-    if format_type not in ['excel']:
-        return jsonify({"status": "error", "message": "Invalid format. Allowed: excel"}), 400
+    if format_type not in ['excel', 'pdf']:
+        return jsonify({"status": "error", "message": "Invalid format. Allowed: excel, pdf"}), 400
 
     try:
         session_id_int = int(session_id)
@@ -1633,6 +1640,26 @@ def teacher_session_report():
             (sess.get('is_active', 0), session_id_int, sess.get('section_id'))
         )
         rows = cursor.fetchall()
+
+        if format_type == 'pdf':
+            # Prepare rows for build_pdf_report
+            pdf_rows = []
+            for r in rows:
+                pdf_rows.append({
+                    "session_date": sess.get("session_date"),
+                    "course_code": sess.get("course_code"),
+                    "course_name": sess.get("course_name"),
+                    "section_code": sess.get("section_code"),
+                    "teacher_name": sess.get("teacher_name"),
+                    "student_name": r.get("student_name"),
+                    "registration_no": r.get("registration_no"),
+                    "student_email": r.get("student_email"),
+                    "status": r.get("status"),
+                    "mode": r.get("mode"),
+                    "marked_at": r.get("marked_at")
+                })
+            date_str = sess.get("session_date").strftime("%Y-%m-%d") if sess.get("session_date") else "unknown"
+            return build_pdf_report(pdf_rows, date_str, date_str)
 
         # Build Excel (reuse openpyxl dependency style)
         try:
