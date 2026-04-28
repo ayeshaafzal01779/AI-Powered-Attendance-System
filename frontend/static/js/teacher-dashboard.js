@@ -270,7 +270,6 @@ function selectMode(mode, button) {
     if (faceSection) faceSection.classList.add('hidden');
     if (manualSection) manualSection.classList.add('hidden');
 
-    // Face feature is "coming soon", but keep this safe when toggling modes.
     stopFaceRecognition();
     
     if (mode === 'QR') {
@@ -312,8 +311,19 @@ function selectMode(mode, button) {
         countdownInterval = null;
         
     } else if (mode === 'Face') {
-        // Face Recognition is intentionally disabled in UI (coming soon).
         if (faceSection) faceSection.classList.remove('hidden');
+        
+        const startBtn = document.getElementById('startFaceBtn');
+        const stopBtn = document.getElementById('stopFaceBtn');
+        const faceMsg = document.getElementById('faceMsg');
+        
+        if (startBtn) startBtn.classList.remove('hidden');
+        if (stopBtn) stopBtn.classList.add('hidden');
+        
+        if (faceMsg) {
+            faceMsg.innerHTML = '<i class="fas fa-camera"></i> Face mode selected. Click "Activate Face Mode" to begin.';
+            faceMsg.style.color = '#2980b9';
+        }
     } else if (mode === 'Manual') {
         if (manualSection) manualSection.classList.remove('hidden');
         loadManualRoster();
@@ -531,6 +541,73 @@ async function refreshQRCode() {
 async function manualRefreshQR() {
     if (isQRCodeActive) {
         await refreshQRCode();
+    }
+}
+
+// ============================================
+// FACE RECOGNITION MODE (PHASE 2)
+// ============================================
+
+async function activateFaceMode() {
+    if (!currentSessionId) {
+        alert('Please start a session first');
+        return;
+    }
+
+    const startBtn = document.getElementById('startFaceBtn');
+    const stopBtn = document.getElementById('stopFaceBtn');
+    const faceMsg = document.getElementById('faceMsg');
+
+    try {
+        const response = await apiCall('/update_session_mode', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                session_id: currentSessionId,
+                mode: 'Face'
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            if (startBtn) startBtn.classList.add('hidden');
+            if (stopBtn) stopBtn.classList.remove('hidden');
+            if (faceMsg) {
+                faceMsg.innerHTML = '<i class="fas fa-check-circle"></i> Face Recognition Active! Share Session ID with students.';
+                faceMsg.style.color = '#27ae60';
+            }
+            showTeacherToast('Face Recognition Mode Activated', 'success');
+        } else {
+            alert('Failed to activate Face Mode');
+        }
+    } catch (err) {
+        console.error('Error activating Face Mode:', err);
+        alert('Error communicating with server');
+    }
+}
+
+async function deactivateFaceMode() {
+    const startBtn = document.getElementById('startFaceBtn');
+    const stopBtn = document.getElementById('stopFaceBtn');
+    const faceMsg = document.getElementById('faceMsg');
+
+    try {
+        const response = await apiCall('/update_session_mode', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                session_id: currentSessionId,
+                mode: 'Hybrid' // Default mode
+            })
+        });
+
+        if (startBtn) startBtn.classList.remove('hidden');
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (faceMsg) {
+            faceMsg.innerHTML = '<i class="fas fa-info-circle"></i> Face Mode Deactivated.';
+            faceMsg.style.color = '#2980b9';
+        }
+    } catch (err) {
+        console.error('Error deactivating Face Mode:', err);
     }
 }
 
