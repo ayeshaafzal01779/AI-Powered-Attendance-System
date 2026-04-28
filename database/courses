@@ -1,0 +1,156 @@
+-- =========================================================
+-- STEP 2: COURSES + COURSE_SEMESTER MAPPING
+-- 5 courses per dept per semester = 20 courses/dept = 80 total
+-- Each course is unique per semester (different code)
+-- =========================================================
+USE TriAttendanceDB;
+
+-- =========================================================
+-- CS COURSES — 5 per semester (Semester 2,4,6,8)
+-- =========================================================
+INSERT INTO courses (dept_id, course_code, course_name, credit_hours, course_type) VALUES
+-- CS Semester 2
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS201', 'Programming Fundamentals',     3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS202', 'Calculus & Analytical Geometry',3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS203', 'Digital Logic Design',          3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS204', 'Introduction to Computing',     3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS205', 'Communication Skills',          3, 'Theory'),
+-- CS Semester 4
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS401', 'Object Oriented Programming',   3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS402', 'Data Structures & Algorithms',  3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS403', 'Database Systems',              3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS404', 'Computer Organization',         3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS405', 'Discrete Mathematics',          3, 'Theory'),
+-- CS Semester 6
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS601', 'Operating Systems',             3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS602', 'Computer Networks',             3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS603', 'Software Engineering',          3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS604', 'Artificial Intelligence',       3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS605', 'Theory of Automata',            3, 'Theory'),
+-- CS Semester 8
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS801', 'Machine Learning',              3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS802', 'Distributed Systems',           3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS803', 'Cloud Computing',               3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS804', 'Final Year Project I',          3, 'Lab'),
+((SELECT dept_id FROM departments WHERE dept_code='CS'), 'CS805', 'Research Methods in CS',        3, 'Theory');
+
+-- =========================================================
+-- IT COURSES — 5 per semester
+-- =========================================================
+INSERT INTO courses (dept_id, course_code, course_name, credit_hours, course_type) VALUES
+-- IT Semester 2
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT201', 'Introduction to IT',            3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT202', 'Web Technologies Basics',       3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT203', 'Fundamentals of Programming',   3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT204', 'IT Infrastructure',             3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT205', 'Mathematics for IT',            3, 'Theory'),
+-- IT Semester 4
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT401', 'Network Administration',        3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT402', 'Database Management',           3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT403', 'System Analysis & Design',      3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT404', 'Web Development',               3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT405', 'Linux Administration',          3, 'Theory'),
+-- IT Semester 6
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT601', 'Cloud Computing',               3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT602', 'Cybersecurity Fundamentals',    3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT603', 'Mobile Application Development',3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT604', 'IT Project Management',         3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT605', 'Enterprise Systems',            3, 'Theory'),
+-- IT Semester 8
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT801', 'IoT & Smart Systems',           3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT802', 'Big Data Analytics',            3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT803', 'Digital Forensics',             3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT804', 'Final Year Project I',          3, 'Lab'),
+((SELECT dept_id FROM departments WHERE dept_code='IT'), 'IT805', 'IT Governance & Ethics',        3, 'Theory');
+
+-- =========================================================
+-- SE COURSES — 5 per semester
+-- =========================================================
+INSERT INTO courses (dept_id, course_code, course_name, credit_hours, course_type) VALUES
+-- SE Semester 2
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE201', 'Software Fundamentals',         3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE202', 'Object Oriented Concepts',      3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE203', 'Applied Mathematics',           3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE204', 'UML & Modeling',                3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE205', 'Technical Writing',             3, 'Theory'),
+-- SE Semester 4
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE401', 'Software Design Patterns',      3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE402', 'Database Engineering',          3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE403', 'Requirements Engineering',      3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE404', 'Human Computer Interaction',    3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE405', 'Probability & Statistics',      3, 'Theory'),
+-- SE Semester 6
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE601', 'Software Testing & QA',         3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE602', 'Agile Methodologies',           3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE603', 'Software Architecture',         3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE604', 'Web Engineering',               3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE605', 'DevOps Practices',              3, 'Theory'),
+-- SE Semester 8
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE801', 'Software Project Management',   3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE802', 'Mobile App Engineering',        3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE803', 'Blockchain Development',        3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE804', 'Final Year Project I',          3, 'Lab'),
+((SELECT dept_id FROM departments WHERE dept_code='SE'), 'SE805', 'Software Ethics & Law',         3, 'Theory');
+
+-- =========================================================
+-- AI COURSES — 5 per semester
+-- =========================================================
+INSERT INTO courses (dept_id, course_code, course_name, credit_hours, course_type) VALUES
+-- AI Semester 2
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI201', 'Introduction to AI',            3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI202', 'Python for AI',                 3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI203', 'Linear Algebra for AI',         3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI204', 'Probability & Statistics',      3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI205', 'Data Structures for AI',        3, 'Theory'),
+-- AI Semester 4
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI401', 'Machine Learning',              3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI402', 'Neural Networks',               3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI403', 'Data Mining',                   3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI404', 'Computer Vision Basics',        3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI405', 'Optimization Techniques',       3, 'Theory'),
+-- AI Semester 6
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI601', 'Deep Learning',                 3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI602', 'Natural Language Processing',   3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI603', 'Reinforcement Learning',        3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI604', 'Big Data & AI',                 3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI605', 'AI Ethics & Society',           3, 'Theory'),
+-- AI Semester 8
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI801', 'Computer Vision Advanced',      3, 'Both'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI802', 'Generative AI',                 3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI803', 'AI in Healthcare',              3, 'Theory'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI804', 'Final Year Project I',          3, 'Lab'),
+((SELECT dept_id FROM departments WHERE dept_code='AI'), 'AI805', 'Research in AI',                3, 'Theory');
+
+-- =========================================================
+-- COURSE_SEMESTER MAPPING
+-- Each course maps to its correct semester by matching
+-- course prefix number (2xx→sem2, 4xx→sem4, 6xx→sem6, 8xx→sem8)
+-- =========================================================
+INSERT INTO course_semester (course_id, sem_id, is_compulsory)
+SELECT c.course_id, s.sem_id, TRUE
+FROM courses c
+JOIN departments d ON d.dept_id = c.dept_id
+JOIN programs p ON p.dept_id = d.dept_id
+JOIN semesters s ON s.program_id = p.program_id
+WHERE (
+    -- Match course level to semester number
+    (SUBSTRING(c.course_code, 3, 1) = '2' AND s.semester_number = 2) OR
+    (SUBSTRING(c.course_code, 3, 1) = '4' AND s.semester_number = 4) OR
+    (SUBSTRING(c.course_code, 3, 1) = '6' AND s.semester_number = 6) OR
+    (SUBSTRING(c.course_code, 3, 1) = '8' AND s.semester_number = 8)
+);
+
+-- =========================================================
+-- VERIFY
+-- =========================================================
+SELECT 'STEP 2 COMPLETE' AS status;
+SELECT COUNT(*) AS total_courses FROM courses;
+SELECT COUNT(*) AS total_course_semester_mappings FROM course_semester;
+
+SELECT d.dept_code, s.semester_number, COUNT(cs.cs_id) AS courses_in_semester
+FROM course_semester cs
+JOIN semesters s ON s.sem_id = cs.sem_id
+JOIN programs p ON p.program_id = s.program_id
+JOIN departments d ON d.dept_id = p.dept_id
+GROUP BY d.dept_code, s.semester_number
+ORDER BY d.dept_code, s.semester_number;
