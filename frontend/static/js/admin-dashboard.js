@@ -303,6 +303,18 @@ async function loadTeachers() {
 // SECTION NAVIGATION
 // ============================================
 
+function setSidebarActive(sectionId) {
+  const sidebarLinks = document.querySelectorAll(".sidebar .nav-link");
+  sidebarLinks.forEach((link) => link.classList.remove("active"));
+
+  const activeLink = Array.from(sidebarLinks).find((link) => {
+    const onclick = link.getAttribute("onclick") || "";
+    return onclick.includes(`showSection('${sectionId}')`);
+  });
+
+  if (activeLink) activeLink.classList.add("active");
+}
+
 function showSection(sectionId) {
   document.querySelectorAll(".content-section").forEach((section) => {
     section.classList.remove("active");
@@ -316,11 +328,273 @@ function showSection(sectionId) {
   }
   if (sectionId === "students") loadStudents();
   if (sectionId === "teachers") loadTeachers();
+  if (sectionId === "departments") showDepartmentsView();
+
+  setSidebarActive(sectionId);
 }
 
 // ============================================
 // LOGOUT
 // ============================================
+
+// ============================================
+// DEPARTMENTS -> SEMESTERS -> COURSES (ADMIN)
+// ============================================
+let selectedDepartmentId = null;
+let selectedSemesterId = null;
+let selectedDepartmentLabelText = "";
+let selectedSemesterLabelText = "";
+
+function showDepartmentsView() {
+  selectedDepartmentId = null;
+  selectedSemesterId = null;
+  selectedDepartmentLabelText = "";
+  selectedSemesterLabelText = "";
+
+  const departmentsPage = document.getElementById("departmentsPage");
+  const semestersPage = document.getElementById("semestersPage");
+  const coursesPage = document.getElementById("coursesPage");
+
+  if (departmentsPage) departmentsPage.classList.remove("d-none");
+  if (semestersPage) semestersPage.classList.add("d-none");
+  if (coursesPage) coursesPage.classList.add("d-none");
+
+  loadDepartmentsTable();
+}
+
+function goBackToDepartments() {
+  showDepartmentsView();
+}
+
+function goBackToSemesters() {
+  if (!selectedDepartmentId) {
+    showDepartmentsView();
+    return;
+  }
+  loadSemestersTable(selectedDepartmentId);
+}
+
+async function loadDepartmentsTable() {
+  const departmentsTableBody = document.getElementById(
+    "departmentsTableBody",
+  );
+  if (departmentsTableBody) {
+    departmentsTableBody.innerHTML = `
+      <tr>
+        <td colspan="3" class="text-center text-muted py-4">Loading...</td>
+      </tr>
+    `;
+  }
+
+  try {
+    const response = await apiCall("/admin_departments");
+    if (!response) return;
+
+    const data = await response.json();
+    if (data.status !== "success" || !Array.isArray(data.departments)) {
+      throw new Error("Invalid departments response");
+    }
+
+    if (!departmentsTableBody) return;
+
+    if (data.departments.length === 0) {
+      departmentsTableBody.innerHTML = `
+        <tr><td colspan="3" class="text-center text-muted py-4">No departments found</td></tr>
+      `;
+      return;
+    }
+
+    departmentsTableBody.innerHTML = "";
+    data.departments.forEach((dept) => {
+      const tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.innerHTML = `
+        <td>${dept.dept_code}</td>
+        <td>${dept.dept_name}</td>
+        <td>
+          <button type="button" class="btn btn-sm btn-primary">
+            View Semesters
+          </button>
+        </td>
+      `;
+      tr.onclick = () => {
+        selectedDepartmentId = dept.dept_id;
+        selectedDepartmentLabelText = `${dept.dept_code} - ${dept.dept_name}`;
+        loadSemestersTable(dept.dept_id);
+      };
+      departmentsTableBody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error("Error loading departments:", err);
+    if (departmentsTableBody) {
+      departmentsTableBody.innerHTML = `
+        <tr><td colspan="3" class="text-center text-danger py-4">Unable to load departments</td></tr>
+      `;
+    }
+  }
+}
+
+async function loadSemestersTable(deptId) {
+  selectedDepartmentId = deptId;
+  selectedSemesterId = null;
+
+  const departmentsPage = document.getElementById("departmentsPage");
+  const semestersPage = document.getElementById("semestersPage");
+  const coursesPage = document.getElementById("coursesPage");
+
+  if (departmentsPage) departmentsPage.classList.add("d-none");
+  if (semestersPage) semestersPage.classList.remove("d-none");
+  if (coursesPage) coursesPage.classList.add("d-none");
+
+  const selectedDepartmentLabelEl = document.getElementById(
+    "selectedDepartmentLabel",
+  );
+  if (selectedDepartmentLabelEl) {
+    selectedDepartmentLabelEl.textContent =
+      selectedDepartmentLabelText || `Department ID: ${deptId}`;
+  }
+
+  const semestersTableBody = document.getElementById(
+    "semestersTableBody",
+  );
+  const coursesTableBody = document.getElementById("coursesTableBody");
+
+  if (semestersTableBody) {
+    semestersTableBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-center text-muted py-4">Loading...</td>
+      </tr>
+    `;
+  }
+  if (coursesTableBody) {
+    coursesTableBody.innerHTML = `
+      <tr><td colspan="4" class="text-center text-muted py-4">Select a semester</td></tr>
+    `;
+  }
+
+  try {
+    const response = await apiCall(
+      `/admin_semesters?dept_id=${encodeURIComponent(deptId)}`,
+    );
+    if (!response) return;
+
+    const data = await response.json();
+    if (data.status !== "success" || !Array.isArray(data.semesters)) {
+      throw new Error("Invalid semesters response");
+    }
+
+    if (!semestersTableBody) return;
+
+    if (data.semesters.length === 0) {
+      semestersTableBody.innerHTML = `
+        <tr><td colspan="5" class="text-center text-muted py-4">No semesters found</td></tr>
+      `;
+      return;
+    }
+
+    semestersTableBody.innerHTML = "";
+    data.semesters.forEach((sem) => {
+      const label = sem.semester_name
+        ? `${sem.semester_name} (${sem.semester_number})`
+        : `Semester ${sem.semester_number}`;
+
+      const tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.innerHTML = `
+        <td>${sem.semester_number}</td>
+        <td>${label}</td>
+        <td>${sem.start_date || "-"}</td>
+        <td>${sem.end_date || "-"}</td>
+        <td>
+          <button type="button" class="btn btn-sm btn-primary">
+            View Courses
+          </button>
+        </td>
+      `;
+      tr.onclick = () => {
+        selectedSemesterId = sem.sem_id;
+        selectedSemesterLabelText = label;
+        loadCoursesTable(sem.sem_id);
+      };
+      semestersTableBody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error("Error loading semesters:", err);
+    if (semestersTableBody) {
+      semestersTableBody.innerHTML = `
+        <tr><td colspan="5" class="text-center text-danger py-4">Unable to load semesters</td></tr>
+      `;
+    }
+  }
+}
+
+async function loadCoursesTable(semId) {
+  selectedSemesterId = semId;
+
+  const semestersPage = document.getElementById("semestersPage");
+  const coursesPage = document.getElementById("coursesPage");
+  if (semestersPage) semestersPage.classList.add("d-none");
+  if (coursesPage) coursesPage.classList.remove("d-none");
+
+  const selectedSemesterLabelEl = document.getElementById(
+    "selectedSemesterLabel",
+  );
+  if (selectedSemesterLabelEl) {
+    selectedSemesterLabelEl.textContent =
+      selectedSemesterLabelText || `Semester ID: ${semId}`;
+  }
+
+  const coursesTableBody = document.getElementById("coursesTableBody");
+  if (coursesTableBody) {
+    coursesTableBody.innerHTML = `
+      <tr><td colspan="4" class="text-center text-muted py-4">Loading...</td></tr>
+    `;
+  }
+
+  try {
+    const response = await apiCall(
+      `/admin_courses?sem_id=${encodeURIComponent(semId)}`,
+    );
+    if (!response) return;
+
+    const data = await response.json();
+    if (data.status !== "success" || !Array.isArray(data.courses)) {
+      throw new Error("Invalid courses response");
+    }
+
+    if (!coursesTableBody) return;
+
+    if (data.courses.length === 0) {
+      coursesTableBody.innerHTML = `
+        <tr><td colspan="4" class="text-center text-muted py-4">No courses found</td></tr>
+      `;
+      return;
+    }
+
+    coursesTableBody.innerHTML = "";
+    data.courses.forEach((course) => {
+      const courseTypeLabel = course.is_compulsory
+        ? "Compulsory"
+        : "Elective";
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${course.course_code}</td>
+        <td>${course.course_name}</td>
+        <td>${course.credit_hours ?? "-"}</td>
+        <td>${courseTypeLabel}</td>
+      `;
+      coursesTableBody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error("Error loading courses:", err);
+    if (coursesTableBody) {
+      coursesTableBody.innerHTML = `
+        <tr><td colspan="4" class="text-center text-danger py-4">Unable to load courses</td></tr>
+      `;
+    }
+  }
+}
 
 function logout() {
   localStorage.clear();
@@ -488,7 +762,9 @@ async function submitAddUserForm(event) {
   const roleEl = document.getElementById("newRole");
   const rollNoEl = document.getElementById("newRollNo");
   const departmentEl = document.getElementById("newDepartment");
+  const semesterEl = document.getElementById("newSemester");
   const employeeIdEl = document.getElementById("newEmployeeId");
+  const teacherCourseEl = document.getElementById("newTeacherCourseCode");
   const qualificationEl = document.getElementById("newQualification");
 
   const full_name = nameEl?.value.trim();
@@ -497,7 +773,9 @@ async function submitAddUserForm(event) {
   const role = roleEl?.value;
   const registration_no = rollNoEl?.value.trim();
   const department_id = departmentEl?.value;
+  const semester_number = semesterEl?.value;
   const employee_id = employeeIdEl?.value.trim();
+  const course_code = teacherCourseEl?.value.trim();
   const qualification = qualificationEl?.value.trim();
 
   if (!full_name || !email || !password || !role) {
@@ -515,8 +793,18 @@ async function submitAddUserForm(event) {
     return;
   }
 
+  if (role === "Student" && !semester_number) {
+    alert("Semester is required for Student.");
+    return;
+  }
+
   if (role === "Teacher" && !employee_id) {
     alert("Employee ID is required for Teacher.");
+    return;
+  }
+
+  if (role === "Teacher" && !course_code) {
+    alert("Course code is required for Teacher.");
     return;
   }
 
@@ -538,7 +826,9 @@ async function submitAddUserForm(event) {
         role,
         registration_no: role === "Student" ? registration_no : "",
         department_id: role === "Student" ? department_id : "",
+        semester_number: role === "Student" ? semester_number : "",
         employee_id: role === "Teacher" ? employee_id : "",
+        course_code: role === "Teacher" ? course_code : "",
         qualification: role === "Teacher" ? qualification : "",
       }),
     });
@@ -638,13 +928,17 @@ function updateRoleSpecificFields() {
   const roleEl = document.getElementById("newRole");
   const rollGroup = document.getElementById("studentRollGroup");
   const departmentGroup = document.getElementById("studentDepartmentGroup");
+  const semesterGroup = document.getElementById("studentSemesterGroup");
   const employeeGroup = document.getElementById("teacherEmployeeGroup");
+  const teacherCourseGroup = document.getElementById("teacherCourseGroup");
   const qualificationGroup = document.getElementById(
     "teacherQualificationGroup",
   );
   const rollNoEl = document.getElementById("newRollNo");
   const departmentEl = document.getElementById("newDepartment");
+  const semesterEl = document.getElementById("newSemester");
   const employeeIdEl = document.getElementById("newEmployeeId");
+  const teacherCourseEl = document.getElementById("newTeacherCourseCode");
 
   if (!roleEl) return;
   const selectedRole = roleEl.value;
@@ -652,7 +946,9 @@ function updateRoleSpecificFields() {
   if (selectedRole === "Teacher") {
     if (rollGroup) rollGroup.classList.add("d-none");
     if (departmentGroup) departmentGroup.classList.add("d-none");
+    if (semesterGroup) semesterGroup.classList.add("d-none");
     if (employeeGroup) employeeGroup.classList.remove("d-none");
+    if (teacherCourseGroup) teacherCourseGroup.classList.remove("d-none");
     if (qualificationGroup) qualificationGroup.classList.remove("d-none");
     if (rollNoEl) {
       rollNoEl.required = false;
@@ -662,17 +958,29 @@ function updateRoleSpecificFields() {
       departmentEl.required = false;
       departmentEl.value = "";
     }
+    if (semesterEl) {
+      semesterEl.required = false;
+      semesterEl.value = "";
+    }
     if (employeeIdEl) employeeIdEl.required = true;
+    if (teacherCourseEl) teacherCourseEl.required = true;
   } else {
     if (rollGroup) rollGroup.classList.remove("d-none");
     if (departmentGroup) departmentGroup.classList.remove("d-none");
+    if (semesterGroup) semesterGroup.classList.remove("d-none");
     if (employeeGroup) employeeGroup.classList.add("d-none");
+    if (teacherCourseGroup) teacherCourseGroup.classList.add("d-none");
     if (qualificationGroup) qualificationGroup.classList.add("d-none");
     if (rollNoEl) rollNoEl.required = true;
     if (departmentEl) departmentEl.required = true;
+    if (semesterEl) semesterEl.required = true;
     if (employeeIdEl) {
       employeeIdEl.required = false;
       employeeIdEl.value = "";
+    }
+    if (teacherCourseEl) {
+      teacherCourseEl.required = false;
+      teacherCourseEl.value = "";
     }
   }
 }
