@@ -42,6 +42,11 @@
           >
         </li>
         <li class="nav-item">
+          <a class="nav-link" onclick="showSection('departments')"
+            ><i class="fas fa-layer-group me-2"></i> Departments</a
+          >
+        </li>
+        <li class="nav-item">
           <a class="nav-link" onclick="showSection('fines')">
             <i class="fas fa-exclamation-triangle me-2"></i> Low Attendance &
             Fines
@@ -120,7 +125,7 @@
         <h3 class="fw-bold mb-4">Student Management</h3>
         <div class="table-container">
           <table class="table table-hover align-middle">
-            <thead class="table-light">
+            <thead class="table-dark">
               <tr>
                 <th>Roll No</th>
                 <th>Student Name</th>
@@ -142,7 +147,7 @@
         <h3 class="fw-bold mb-4">Faculty Members</h3>
         <div class="table-container">
           <table class="table table-hover align-middle">
-            <thead class="table-light">
+            <thead class="table-dark">
               <tr>
                 <th>Employee ID</th>
                 <th>Teacher Name</th>
@@ -156,6 +161,113 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div id="departments" class="content-section">
+        <h3 class="fw-bold mb-4">Departments</h3>
+
+        <div class="card p-4 shadow-sm">
+          <!-- Departments Page -->
+          <div id="departmentsPage">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fw-bold mb-0">
+                <i class="fas fa-building me-2 text-primary"></i>Departments
+              </h5>
+            </div>
+
+            <div class="table-container p-0 shadow-none" style="background: transparent">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Dept Code</th>
+                    <th>Dept Name</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="departmentsTableBody">
+                  <tr>
+                    <td colspan="3" class="text-center text-muted py-4">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Semesters Page -->
+          <div id="semestersPage" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h5 class="fw-bold mb-1">
+                  <i class="fas fa-graduation-cap me-2 text-primary"></i>Semesters
+                </h5>
+                <div id="selectedDepartmentLabel" class="text-muted small"></div>
+              </div>
+              <button
+                type="button"
+                class="btn btn-link p-0 text-decoration-none"
+                onclick="goBackToDepartments()"
+              >
+                &larr; Back
+              </button>
+            </div>
+
+            <div class="table-container p-0 shadow-none" style="background: transparent">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                  <tr>
+                    <th>#</th>
+                    <th>Semester</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="semestersTableBody">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Courses Page -->
+          <div id="coursesPage" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h5 class="fw-bold mb-1">
+                  <i class="fas fa-book me-2 text-primary"></i>Courses
+                </h5>
+                <div id="selectedSemesterLabel" class="text-muted small"></div>
+              </div>
+              <button
+                type="button"
+                class="btn btn-link p-0 text-decoration-none"
+                onclick="goBackToSemesters()"
+              >
+                &larr; Back
+              </button>
+            </div>
+
+            <div class="table-container p-0 shadow-none" style="background: transparent">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Code</th>
+                    <th>Course</th>
+                    <th>Cr</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+                <tbody id="coursesTableBody">
+                  <tr>
+                    <td colspan="4" class="text-center text-muted py-4">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -380,6 +492,16 @@
                   <option value="">Select department</option>
                 </select>
               </div>
+              <div class="mb-3" id="studentSemesterGroup">
+                <label class="form-label fw-bold">Semester</label>
+                <select class="form-select" id="newSemester">
+                  <option value="">Select semester</option>
+                  <option value="2">Semester 2</option>
+                  <option value="4">Semester 4</option>
+                  <option value="6">Semester 6</option>
+                  <option value="8">Semester 8</option>
+                </select>
+              </div>
               <div class="mb-3 d-none" id="teacherEmployeeGroup">
                 <label class="form-label fw-bold">Employee ID</label>
                 <input
@@ -387,6 +509,15 @@
                   class="form-control"
                   id="newEmployeeId"
                   placeholder="Enter teacher employee id"
+                />
+              </div>
+              <div class="mb-3 d-none" id="teacherCourseGroup">
+                <label class="form-label fw-bold">Course Code</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="newTeacherCourseCode"
+                  placeholder="e.g. CS201 / IT201 / SE201 / AI201"
                 />
               </div>
               <div class="mb-3 d-none" id="teacherQualificationGroup">
