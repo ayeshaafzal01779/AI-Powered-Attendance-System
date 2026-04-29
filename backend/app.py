@@ -1896,6 +1896,135 @@ def get_my_attendance_history():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ============================================
+# CHATBOT API (ROLE-BASED)
+# ============================================
+
+import requests as http_requests
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+CHAT_SYSTEM_PROMPTS = {
+    "Student": """You are a friendly AI assistant built into an AI Attendance System for students.
+
+Your ONLY job is to help students with topics related to:
+- Their attendance, courses, marks, and academic performance
+- Checking attendance percentage per course
+- The 75% minimum attendance rule and its consequences
+- How QR code attendance works (student scans QR shown by teacher in class)
+- How Face Recognition attendance works (student uses camera to mark attendance)
+- Attendance fines: Rs. 500 issued when attendance drops below 75%, paid through the student portal
+- How to view fine status (Pending/Paid) in the dashboard
+- Study tips, time management, exam preparation, and academic advice
+- How to use the student dashboard features
+
+STRICT RULES:
+1. ALWAYS respond in English only. Never use Roman Urdu, Urdu, or any other language.
+2. ONLY answer questions related to the attendance system, academics, study tips, or student life.
+3. If asked about mobile phones, games, movies, politics, sports, cooking, or ANY unrelated topic, politely say: "I'm here to help with attendance and academic matters only. Is there anything related to your studies or attendance that I can assist with?"
+4. Never reveal other students' personal data.
+5. Never say "I cannot help" without offering an alternative academic/attendance topic.
+6. Keep responses concise and helpful. Use simple English.""",
+
+    "Teacher": """You are a helpful AI assistant built into an AI Attendance System for teachers.
+
+Your ONLY job is to help teachers with:
+- Starting and managing attendance sessions
+- How QR code sessions work: QR is generated and auto-refreshes every 15 seconds, students scan to mark Present
+- How Face Recognition mode works for attendance
+- How to manually mark students as Present or Absent
+- How to close a session once class is done
+- How to download Excel reports for any session
+- Viewing assigned sections and course details
+- Classroom management and teaching strategies
+- Best practices for maintaining student attendance records
+
+STRICT RULES:
+1. ALWAYS respond in English only. Never use Roman Urdu, Urdu, or any other language.
+2. ONLY answer questions related to the attendance system, teaching, classroom management, or academic matters.
+3. If asked about mobile phones, gadgets, entertainment, politics, or ANY unrelated topic, politely say: "I'm here to assist with attendance and teaching-related matters only. How can I help you with your classes or attendance sessions?"
+4. If asked about admin-only features (like issuing fines, adding users), explain those are admin functions and suggest contacting the admin.
+5. Never flatly refuse. Always redirect to attendance or teaching topics.
+6. Keep responses clear and professional.""",
+
+    "Admin": """You are a knowledgeable AI assistant built into an AI Attendance System for administrators.
+
+Your ONLY job is to help administrators with:
+- Adding new students and teachers
+- Managing departments
+- Viewing all students and teachers with their details
+- Low attendance monitoring: students below 75% appear in a list, admin can issue Rs. 500 fines
+- Fine management: viewing all fines (Pending/Paid), automatic email notifications
+- Downloading attendance reports as PDF or Excel filtered by date range
+- Attendance trends: 7-day daily attendance chart
+- Face recognition sync: syncing face dataset from files to database
+- QR attendance sessions overview
+- System configuration via environment variables
+- Server management and technical issues related to this attendance system
+
+STRICT RULES:
+1. ALWAYS respond in English only. Never use Roman Urdu, Urdu, or any other language.
+2. ONLY answer questions related to the attendance system, its administration, server management, or technical support for THIS system.
+3. If asked about unrelated software, mobile phones, entertainment, politics, or ANY off-topic subject, politely say: "I'm here to assist with the AI Attendance System only. Is there anything related to managing the attendance system that I can help with?"
+4. Never refuse without offering useful guidance about the attendance system.
+5. Be concise but complete in responses."""
+}
+
+@app.route('/chatbot', methods=['POST'])
+@role_required(['Admin', 'Teacher', 'Student'])
+def chatbot():
+    role = session.get('role')  # 'Admin', 'Teacher', or 'Student'
+    data = request.get_json() or {}
+    
+    user_message = (data.get('message') or '').strip()
+    history = data.get('history') or []  # list of {role, content} dicts
+    
+    if not user_message:
+        return jsonify({"status": "error", "message": "Message is required"}), 400
+    
+    messages = []
+    for entry in history[-10:]:
+        if entry.get('role') in ['user', 'assistant'] and entry.get('content'):
+            messages.append({
+                "role": entry['role'],
+                "content": str(entry['content'])
+            })
+    messages.append({"role": "user", "content": user_message})
+    
+    try:
+        or_messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPTS[role]}]
+        for msg in messages:
+            or_messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+
+        or_response = http_requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "openrouter/auto",
+                "messages": or_messages,
+                "max_tokens": 1000
+            }
+        )
+
+        or_data = or_response.json()
+        print(f"[OPENROUTER RESPONSE] {or_data}")
+
+        if "error" in or_data:
+            error_msg = or_data["error"].get("message", "Unknown error")
+            return jsonify({"status": "error", "message": f"AI error: {error_msg}"}), 500
+
+        reply = or_data["choices"][0]["message"]["content"]
+        return jsonify({"status": "success", "reply": reply})
+
+    except Exception as e:
+        print(f"[CHATBOT ERROR] {str(e)}")
+        return jsonify({"status": "error", "message": f"AI error: {str(e)}"}), 500
+
+# ============================================
 # RUN APP
 # ============================================
 
