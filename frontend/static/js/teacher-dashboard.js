@@ -11,12 +11,19 @@ const userRole = localStorage.getItem('userRole');
 
 // Role check
 if (!user || !userId || userRole !== 'Teacher') {
-    alert('Access Denied. Teachers only.');
-    window.location.href = '/';
+    Swal.fire({
+        icon: 'error',
+        title: 'Access Denied',
+        text: 'Teachers only.',
+        confirmButtonColor: '#2c3e50'
+    }).then(() => {
+        window.location.href = '/';
+    });
 }
 
 // Global variables
 let currentSessionId = null;
+let currentActiveSectionId = null; // Track which section is active
 let refreshInterval = null;
 let qrRefreshInterval = null;
 let countdownInterval = null;
@@ -64,26 +71,38 @@ function syncManualSelectAllCheckbox() {
 }
 
 function showTeacherToast(text, type = 'info') {
-    let toast = document.getElementById('teacherToast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'teacherToast';
-        toast.className = 'teacher-toast';
-        document.body.appendChild(toast);
-    }
-
-    if (teacherToastTimer) clearTimeout(teacherToastTimer);
-    toast.textContent = text;
-    toast.className = `teacher-toast show ${type}`;
-    teacherToastTimer = setTimeout(() => {
-        toast.className = 'teacher-toast';
-    }, 4500);
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+        background: '#ffffff',
+        color: '#1e293b',
+        iconColor: type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6'),
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
+            toast.style.borderRadius = '12px'
+            toast.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+            toast.style.borderLeft = `6px solid ${type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6')}`
+        }
+    });
+    
+    Toast.fire({
+        icon: type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info'),
+        title: `<div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">${type.charAt(0).toUpperCase() + type.slice(1)}</div><div style="font-weight: 400; font-size: 13px; color: #64748b;">${text}</div>`
+    });
 }
 
 function updateActiveSessionIdDisplay() {
     const sessionIdEl = document.getElementById('activeSessionId');
     if (sessionIdEl) {
         sessionIdEl.textContent = currentSessionId || '--';
+    }
+    const faceSessionIdEl = document.getElementById('faceSessionIdDisplay');
+    if (faceSessionIdEl) {
+        faceSessionIdEl.textContent = currentSessionId || '--';
     }
 }
 
@@ -99,6 +118,21 @@ async function copySessionId(event) {
     const markCopied = () => {
         if (!copyIcon) return;
         copyIcon.classList.add('copied');
+        
+        // Use SweetAlert2 for a professional toast
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true
+        });
+        
+        Toast.fire({
+            icon: 'success',
+            title: 'Session ID copied!'
+        });
+
         setTimeout(() => copyIcon.classList.remove('copied'), 900);
     };
 
@@ -149,9 +183,15 @@ async function apiCall(url, options = {}) {
         const response = await fetch(fullUrl, mergedOptions);
         
         if (response.status === 401 || response.status === 403) {
-            alert('Session expired. Please login again.');
-            localStorage.clear();
-            window.location.href = '/';
+            Swal.fire({
+                icon: 'warning',
+                title: 'Session Expired',
+                text: 'Please login again.',
+                confirmButtonColor: '#2c3e50'
+            }).then(() => {
+                localStorage.clear();
+                window.location.href = '/';
+            });
             return null;
         }
         return response;
@@ -179,14 +219,15 @@ async function loadCourses() {
             courseList.innerHTML = '';
             
             data.courses.forEach(course => {
+                const isActive = currentActiveSectionId === course.section_id;
                 const courseCard = document.createElement('div');
-                courseCard.className = 'course-card';
+                courseCard.className = `course-card ${isActive ? 'active' : ''}`;
                 courseCard.innerHTML = `
-                    <div class="course-code">${course.course_code}</div>
+                    <div class="course-code">${course.course_code} ${isActive ? '<span class="active-badge"><i class="fas fa-signal"></i> LIVE</span>' : ''}</div>
                     <div class="course-name">${course.course_name}</div>
                     <div class="course-detail">Section: ${course.section_code} | Room: ${course.room_no || 'N/A'}</div>
-                    <button class="start-btn" onclick="startSession(${course.section_id}, '${course.course_code}')">
-                        <i class="fas fa-play"></i> Start Session
+                    <button class="start-btn" onclick="startSession(${course.section_id}, '${course.course_code}')" ${isActive ? 'disabled' : ''}>
+                        <i class="fas ${isActive ? 'fa-check' : 'fa-play'}"></i> ${isActive ? 'Session Active' : 'Start Session'}
                     </button>
                 `;
                 courseList.appendChild(courseCard);
@@ -223,7 +264,11 @@ async function startSession(sectionId, courseCode) {
         
         if (data.status === 'success') {
             currentSessionId = data.session_id;
+            currentActiveSectionId = sectionId; // Set active section ID
             updateActiveSessionIdDisplay();
+            
+            // Refresh course list to show active state
+            loadCourses();
             
             const activeSession = document.getElementById('activeSession');
             const modeSelector = document.getElementById('modeSelector');
@@ -245,7 +290,11 @@ async function startSession(sectionId, courseCode) {
         }
     } catch (err) {
         console.error('Error starting session:', err);
-        alert('Error starting session');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Unable to start session'
+        });
     } finally {
         if (startBtn) {
             startBtn.disabled = false;
@@ -259,18 +308,29 @@ async function startSession(sectionId, courseCode) {
 // ============================================
 
 function selectMode(mode, button) {
+    const isAlreadyActive = button.classList.contains('active');
+
+    // Remove active class from all buttons
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    button.classList.add('active');
     
     const qrSection = document.getElementById('qrSection');
     const faceSection = document.getElementById('faceSection');
     const manualSection = document.getElementById('manualSection');
     
+    // Hide all sections
     if (qrSection) qrSection.classList.add('hidden');
     if (faceSection) faceSection.classList.add('hidden');
     if (manualSection) manualSection.classList.add('hidden');
 
     stopFaceRecognition();
+
+    // If it was already active, we just toggle it off and return
+    if (isAlreadyActive) {
+        return;
+    }
+
+    // Otherwise, activate the clicked button and show its section
+    button.classList.add('active');
     
     if (mode === 'QR') {
         if (qrSection) qrSection.classList.remove('hidden');
@@ -278,28 +338,39 @@ function selectMode(mode, button) {
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const qrImg = document.getElementById('qrImg');
         const startBtn = document.getElementById('startQrBtn');
-        const stopBtn = document.getElementById('stopQrBtn');
-        const refreshBtn = document.getElementById('refreshQrBtn');
+        const activeQrControls = document.getElementById('activeQrControls');
+        const qrTimerContainer = document.getElementById('qrTimerContainer');
         const qrCountdown = document.getElementById('qrCountdown');
         const qrMsg = document.getElementById('qrMsg');
         
         if (qrPlaceholder) {
             qrPlaceholder.innerHTML = `
-                <i class="fas fa-qrcode fa-5x mb-3"></i>
-                <p>Ready to start QR attendance</p>
-                <small>Click "Start QR" to generate code</small>
+                <i class="fas fa-qrcode fa-4x mb-3 text-primary" style="opacity: 0.3;"></i>
+                <h5>QR Code Mode Ready</h5>
+                <p class="px-4 text-center">Generate a dynamic QR code that students can scan to mark their attendance instantly.</p>
+                <div id="qrTimerContainer" class="mt-2 hidden">
+                    <div class="qr-timer shadow-sm border-0 mx-auto" style="width: fit-content;">
+                        <i class="fas fa-clock"></i>
+                        <span class="timer-num" id="qrCountdown">--</span>
+                        <span class="text-muted small fw-bold">SEC</span>
+                    </div>
+                </div>
             `;
             qrPlaceholder.classList.remove('hidden');
         }
         
         if (qrImg) qrImg.classList.add('hidden');
-        if (startBtn) startBtn.classList.remove('hidden');
-        if (stopBtn) stopBtn.classList.add('hidden');
-        if (refreshBtn) refreshBtn.classList.add('hidden');
+        if (startBtn) {
+            startBtn.classList.remove('hidden');
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-play me-2"></i> Start QR Code';
+        }
+        if (activeQrControls) activeQrControls.classList.add('hidden');
+        if (qrTimerContainer) qrTimerContainer.classList.add('hidden');
         if (qrCountdown) qrCountdown.textContent = '--';
         
         if (qrMsg) {
-            qrMsg.innerHTML = '<i class="fas fa-qrcode"></i> QR mode selected. Click "Start QR" to begin.';
+            qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR mode selected. Click "Start QR Code" to begin.';
             qrMsg.style.color = '#2980b9';
         }
         
@@ -412,7 +483,17 @@ async function activateQRMode() {
 // ============================================
 
 async function deactivateQRMode() {
-    if (!confirm('Stop QR code? Students will no longer be able to scan.')) return;
+    const result = await Swal.fire({
+        title: 'Stop QR Code?',
+        text: 'Students will no longer be able to scan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, stop it!'
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
         const response = await fetch(`${API_BASE_URL}/stop_qr`, {
@@ -445,9 +526,9 @@ async function deactivateQRMode() {
 
         if (qrPlaceholder) {
             qrPlaceholder.innerHTML = `
-                <i class="fas fa-qrcode fa-5x mb-3"></i>
-                <p>Ready to start QR attendance</p>
-                <small>Click "Start QR" to generate code</small>
+                <i class="fas fa-qrcode fa-4x mb-3" style="color: #2980b9; opacity: 0.3;"></i>
+                <p class="fw-bold mb-1">Ready to Start</p>
+                <small>Generate a secure QR code for students</small>
             `;
             qrPlaceholder.classList.remove('hidden');
         }
@@ -675,7 +756,22 @@ async function loadAttendanceList() {
             if (previousPresentStudentIds.size > 0 && newlyMarkedNames.length > 0) {
                 const joinedNames = newlyMarkedNames.slice(0, 2).join(', ');
                 const suffix = newlyMarkedNames.length > 2 ? ` +${newlyMarkedNames.length - 2} more` : '';
-                showTeacherToast(`Attendance marked: ${joinedNames}${suffix}`, 'success');
+                
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    iconColor: '#10b981'
+                });
+                Toast.fire({
+                    icon: 'success',
+                    title: 'Attendance Marked',
+                    text: `${joinedNames}${suffix}`
+                });
             }
             previousPresentStudentIds = currentPresentStudentIds;
 
@@ -792,19 +888,29 @@ function getSelectedManualStudentIds() {
 
 async function markSelectedAttendance(status) {
     if (!currentSessionId) {
-        alert('Please start a session first');
+        Swal.fire('Error', 'Please start a session first', 'error');
         return;
     }
     const selectedIds = getSelectedManualStudentIds();
     if (selectedIds.length === 0) {
-        alert('Select at least one student');
+        Swal.fire({
+            icon: 'info',
+            title: 'No Students Selected',
+            text: 'Please select at least one student from the list.'
+        });
         return;
     }
 
-    const confirmText = status === 'Absent'
-        ? `Mark ${selectedIds.length} selected student(s) Absent?`
-        : `Mark ${selectedIds.length} selected student(s) Present?`;
-    if (!confirm(confirmText)) return;
+    const result = await Swal.fire({
+        title: `Mark as ${status}?`,
+        text: `You are about to mark ${selectedIds.length} student(s) as ${status}.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: status === 'Present' ? '#27ae60' : '#e67e22',
+        confirmButtonText: 'Yes, proceed'
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
         const response = await apiCall('/teacher_mark_attendance', {
@@ -818,10 +924,18 @@ async function markSelectedAttendance(status) {
         if (!response) return;
         const data = await response.json();
         if (data.status !== 'success') {
-            alert(data.message || 'Unable to update attendance');
+            Swal.fire('Error', data.message || 'Unable to update attendance', 'error');
             return;
         }
-        showTeacherToast(`Updated ${selectedIds.length} student(s)`, 'success');
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: `Updated ${selectedIds.length} student(s) to ${status}.`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+        
         selectedManualStudentIds.clear();
         const selAll = document.getElementById('manualSelectAll');
         if (selAll) selAll.checked = false;
@@ -833,19 +947,32 @@ async function markSelectedAttendance(status) {
     }
 }
 
-async function downloadSessionSheet() {
+async function downloadSessionSheet(format = 'excel') {
     if (!currentSessionId) {
-        alert('Start a session first');
+        Swal.fire('Error', 'Start a session first', 'error');
         return;
     }
+    
+    // Show loading state
+    const loadingToast = Swal.fire({
+        title: 'Generating Report...',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
     try {
-        const response = await fetch(`${API_BASE_URL}/teacher_session_report?session_id=${currentSessionId}&format=excel`, {
+        const response = await fetch(`${API_BASE_URL}/teacher_session_report?session_id=${currentSessionId}&format=${format}`, {
             method: 'GET',
             credentials: 'include'
         });
+        
+        Swal.close(); // Close loading
+
         if (!response.ok) {
             const err = await response.json().catch(() => null);
-            alert(err?.message || 'Unable to download sheet');
+            Swal.fire('Error', err?.message || 'Unable to download sheet', 'error');
             return;
         }
         const blob = await response.blob();
@@ -854,14 +981,25 @@ async function downloadSessionSheet() {
         a.href = url;
         const disposition = response.headers.get('content-disposition') || '';
         const match = disposition.match(/filename="?([^"]+)"?/i);
-        a.download = match?.[1] || `attendance_session_${currentSessionId}.xlsx`;
+        
+        const ext = format === 'pdf' ? 'pdf' : 'xlsx';
+        a.download = match?.[1] || `attendance_session_${currentSessionId}.${ext}`;
+        
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Downloaded!',
+            text: `Attendance report (${format.toUpperCase()}) saved.`,
+            timer: 2000,
+            showConfirmButton: false
+        });
     } catch (err) {
         console.error('Download sheet error:', err);
-        alert('Unable to download sheet');
+        Swal.fire('Error', 'Unable to download report', 'error');
     }
 }
 
@@ -870,7 +1008,17 @@ async function downloadSessionSheet() {
 // ============================================
 
 async function closeSession() {
-    if (!confirm('Are you sure you want to close this session?')) return;
+    const result = await Swal.fire({
+        title: 'Close Session?',
+        text: 'Are you sure you want to end this attendance session?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, close it!'
+    });
+
+    if (!result.isConfirmed) return;
     
     try {
         await fetch(`${API_BASE_URL}/close_session`, {
@@ -880,7 +1028,15 @@ async function closeSession() {
             body: JSON.stringify({ session_id: currentSessionId })
         });
         
+        Swal.fire({
+            icon: 'success',
+            title: 'Session Closed',
+            text: 'Attendance session has been ended successfully.',
+            confirmButtonColor: '#2980b9'
+        });
+
         currentSessionId = null;
+        currentActiveSectionId = null;
         previousPresentStudentIds = new Set();
         updateActiveSessionIdDisplay();
         isQRCodeActive = false;
@@ -935,8 +1091,6 @@ async function closeSession() {
         document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
         
         loadCourses();
-        
-        alert('Session closed successfully!');
     } catch (err) {
         console.error('Error closing session:', err);
     }

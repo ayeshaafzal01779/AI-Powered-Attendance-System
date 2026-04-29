@@ -188,8 +188,13 @@ class FaceAI:
                             # Use fallback detection (Face -> Upsampled Face -> Eyes)
                             face_locations, det_type = self.get_face_or_eyes_locations(image)
                             
-                            # model="large" is more accurate for embeddings
+                            # model="large" is more accurate for embeddings (68 points)
+                            # model="small" only needs 5 points (better for niqab)
                             encodings = face_recognition.face_encodings(image, known_face_locations=face_locations, num_jitters=15, model="large")
+                            
+                            if not encodings:
+                                # Fallback to small model if large fails
+                                encodings = face_recognition.face_encodings(image, known_face_locations=face_locations, num_jitters=15, model="small")
                             
                             if encodings:
                                 encoding_json = json.dumps(encodings[0].tolist())
@@ -242,7 +247,11 @@ class FaceAI:
             
             # Step B: Get encodings for found locations
             # Using 5 jitters for better stability in low light
-            live_encodings = face_recognition.face_encodings(img_np, known_face_locations=face_locations, num_jitters=5)
+            live_encodings = face_recognition.face_encodings(img_np, known_face_locations=face_locations, num_jitters=5, model="large")
+            
+            if not live_encodings:
+                # Fallback to small model
+                live_encodings = face_recognition.face_encodings(img_np, known_face_locations=face_locations, num_jitters=5, model="small")
             
             if not live_encodings:
                 return {"status": "error", "message": f"Could not extract features from detected {det_type}. Please try again."}
