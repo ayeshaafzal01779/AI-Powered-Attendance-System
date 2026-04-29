@@ -692,6 +692,96 @@ def admin_departments():
     conn.close()
     return jsonify({"status": "success", "departments": departments})
 
+@app.route('/admin_semesters', methods=['GET'])
+@role_required(['Admin'])
+def admin_semesters():
+    dept_id = request.args.get('dept_id') or request.args.get('department_id')
+    if dept_id in [None, ""]:
+        return jsonify({"status": "error", "message": "dept_id is required"}), 400
+
+    try:
+        dept_id_int = int(dept_id)
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "Invalid dept_id"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT
+            s.sem_id,
+            s.semester_number,
+            s.semester_name,
+            s.start_date,
+            s.end_date,
+            s.is_active
+        FROM semesters s
+        JOIN programs p ON s.program_id = p.program_id
+        WHERE p.dept_id = %s
+        ORDER BY s.semester_number ASC
+        """,
+        (dept_id_int,),
+    )
+    semesters = cursor.fetchall()
+
+    # jsonify can't serialize date objects; convert to strings
+    for sem in semesters:
+        if sem.get("start_date"):
+            sem["start_date"] = sem["start_date"].strftime("%Y-%m-%d")
+        if sem.get("end_date"):
+            sem["end_date"] = sem["end_date"].strftime("%Y-%m-%d")
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({"status": "success", "semesters": semesters})
+
+@app.route('/admin_courses', methods=['GET'])
+@role_required(['Admin'])
+def admin_courses():
+    sem_id = request.args.get('sem_id')
+    if sem_id in [None, ""]:
+        return jsonify({"status": "error", "message": "sem_id is required"}), 400
+
+    try:
+        sem_id_int = int(sem_id)
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "Invalid sem_id"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT
+            c.course_id,
+            c.course_code,
+            c.course_name,
+            c.credit_hours,
+            cs.is_compulsory
+        FROM course_semester cs
+        JOIN courses c ON cs.course_id = c.course_id
+        WHERE cs.sem_id = %s
+        ORDER BY c.course_code ASC
+        """,
+        (sem_id_int,),
+    )
+    courses = cursor.fetchall()
+
+    for course in courses:
+        # MySQL returns 0/1 or True/False depending on driver; normalize for frontend.
+        course["is_compulsory"] = bool(course.get("is_compulsory"))
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({"status": "success", "courses": courses})
+
 def fetch_report_rows(start_date, end_date):
     conn = get_db_connection()
     if conn is None:
@@ -1027,6 +1117,8 @@ def admin_add_user():
     role = (data.get('role') or "").strip()
     phone = (data.get('phone') or "").strip() or None
     department_id = data.get('department_id')
+    semester_number = data.get('semester_number')
+    course_code = (data.get('course_code') or "").strip().upper()
 
     if not full_name or not email or not password or not role:
         return jsonify({"status": "error", "message": "Full name, email, password and role are required"}), 400
@@ -1058,6 +1150,77 @@ def admin_add_user():
             conn.close()
             return jsonify({"status": "error", "message": "Selected department does not exist"}), 400
 
+        semester_number_raw = (semester_number or "").strip()
+        if not semester_number_raw:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Semester is required for Student"}), 400
+
+        try:
+            semester_number_int = int(semester_number_raw)
+        except (TypeError, ValueError):
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid semester"}), 400
+
+        cursor.execute(
+            "SELECT program_id FROM programs WHERE dept_id = %s LIMIT 1",
+            (department_id,),
+        )
+        program_row = cursor.fetchone()
+        if not program_row:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Program not found for department"}), 400
+        program_id = program_row["program_id"]
+
+        cursor.execute(
+            """
+            SELECT s.sem_id
+            FROM semesters s
+            JOIN programs p ON p.program_id = s.program_id
+            WHERE p.dept_id = %s AND s.semester_number = %s
+            LIMIT 1
+            """,
+            (department_id, semester_number_int),
+        )
+        sem_row = cursor.fetchone()
+        if not sem_row:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Selected semester not found for this department"}), 400
+        current_sem_id = sem_row["sem_id"]
+    else:
+        if not course_code:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Course code is required for Teacher"}), 400
+
+        course_prefix = course_code[:2]
+        if course_prefix not in ["CS", "IT", "SE", "AI"]:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid course code prefix"}), 400
+
+        cursor.execute(
+            """
+            SELECT cs.cs_id
+            FROM course_semester cs
+            JOIN courses c ON c.course_id = cs.course_id
+            WHERE c.course_code = %s
+            LIMIT 1
+            """,
+            (course_code,),
+        )
+        cs_row = cursor.fetchone()
+        if not cs_row:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Selected course not found"}), 400
+
+        teacher_cs_id = cs_row["cs_id"]
+        teacher_room_no = f"{course_prefix}-Room-{course_code}"
+
     cursor.execute("SELECT user_id FROM users WHERE email = %s LIMIT 1", (email,))
     if cursor.fetchone():
         cursor.close()
@@ -1073,10 +1236,10 @@ def admin_add_user():
                 registration_no = f"STD-{datetime.now().year}-{uuid.uuid4().hex[:6].upper()}"
 
             cursor.execute("""
-                INSERT INTO users (email, password, role, full_name, phone, registration_no, dept_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (email, hashed_password, role, full_name, phone, registration_no, department_id))
-
+                INSERT INTO users (email, password, role, full_name, phone, registration_no, dept_id, program_id, current_sem_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (email, hashed_password, role, full_name, phone, registration_no, department_id, program_id, current_sem_id))
+            user_id = cursor.lastrowid
             created_detail = {"registration_no": registration_no, "employee_id": None}
         else:
             employee_id = (data.get('employee_id') or "").strip()
@@ -1088,11 +1251,47 @@ def admin_add_user():
                 INSERT INTO users (email, password, role, full_name, phone, employee_id, qualification)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (email, hashed_password, role, full_name, phone, employee_id, qualification))
-
+            user_id = cursor.lastrowid
             created_detail = {"registration_no": None, "employee_id": employee_id}
 
+            # Ensure the teacher has a section assigned for the selected course.
+            # Teacher dashboard uses `sections` joined to `course_semester` via teacher_id.
+            cursor.execute(
+                """
+                SELECT section_id
+                FROM sections
+                WHERE cs_id = %s
+                ORDER BY is_active DESC, section_id DESC
+                LIMIT 1
+                """,
+                (teacher_cs_id,),
+            )
+            existing_section = cursor.fetchone()
+
+            if existing_section:
+                cursor.execute(
+                    """
+                    UPDATE sections
+                    SET teacher_id = %s,
+                        section_code = %s,
+                        room_no = %s,
+                        capacity = %s,
+                        enrolled_count = %s,
+                        is_active = TRUE
+                    WHERE section_id = %s
+                    """,
+                    (user_id, "A", teacher_room_no, 20, 0, existing_section["section_id"]),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO sections (cs_id, section_code, teacher_id, room_no, capacity, enrolled_count, is_active)
+                    VALUES (%s, %s, %s, %s, %s, %s, TRUE)
+                    """,
+                    (teacher_cs_id, "A", user_id, teacher_room_no, 20, 0),
+                )
+
         conn.commit()
-        user_id = cursor.lastrowid
     except Exception as exc:
         conn.rollback()
         cursor.close()
