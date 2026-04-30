@@ -90,7 +90,7 @@ python backend/app.py
 
 ---
 
-##User Roles
+## User Roles
 Role	Access
 Admin	Manage users, departments, fines, reports
 Teacher	Start sessions, mark attendance, download reports
@@ -98,7 +98,7 @@ Student	View attendance, scan QR, face recognition
 
 ---
 
-##Team Members
+## Team Members
 Name	Roll No
 Ayesha Afzal	BIT22022
 Meerab Gohar	BIT22029
@@ -109,11 +109,11 @@ University: University of the Punjab, Gujranwala Campus
 
 ---
 
-##Academic Purpose
+## Academic Purpose
 This project is developed for academic purposes as part of the Final Year Design Project (FYDP).
 
 ---
 
-##License
+## License
 This project is for educational and academic use only.
 ```
