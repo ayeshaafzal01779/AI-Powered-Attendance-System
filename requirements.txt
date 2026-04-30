@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 async-timeout==5.0.1
-=======
-anthropic
->>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
 bcrypt==5.0.0
 bidict==0.23.1
 blinker==1.9.0
