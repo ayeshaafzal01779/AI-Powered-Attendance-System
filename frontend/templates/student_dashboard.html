@@ -9,7 +9,8 @@
     <!-- HTML5 QR Code Library -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     
-    <!-- Mediapipe for Anti-Spoofing (Module approach) -->
+    
+    <!-- Mediapipe for Anti-Spoofing -->
     <script type="module">
         import { FaceLandmarker, FilesetResolver } from "https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.3";
         window.FaceLandmarker = FaceLandmarker;
@@ -33,7 +34,8 @@
 </div>
 
 <div class="container">
-    <!-- CARDS -->
+
+    <!-- STATS CARDS -->
     <div class="cards">
         <div class="card green">
             <div class="card-content">
@@ -64,24 +66,16 @@
         </div>
     </div>
 
+    <!-- ==========================================
+         LIVE SESSION BANNER 
+         Auto-populated by polling every 10 sec
+    =========================================== -->
+    <div id="liveSessionBanner" class="hidden"></div>
+
     <!-- CHART -->
     <div class="section">
         <h3><i class="fas fa-chart-line"></i> Attendance Trend</h3>
         <canvas id="attendanceChart"></canvas>
-    </div>
-
-    <!-- MARK ATTENDANCE -->
-    <div class="section mark-attendance">
-        <h3><i class="fas fa-fingerprint"></i> Mark Attendance</h3>
-        <button class="qr-btn" onclick="openQRScanner()">
-            <i class="fas fa-qrcode"></i> Scan QR Code
-        </button>
-        <button class="qr-btn" onclick="markQR()">
-            <i class="fas fa-keyboard"></i> Enter Session ID
-        </button>
-        <button class="face-btn" onclick="markFace()">
-            <i class="fas fa-face-smile"></i> Facial Recognition
-        </button>
     </div>
 
     <!-- COURSE WISE ATTENDANCE -->
@@ -117,14 +111,17 @@
         </div>
     </div>
 
-    <!-- ALERT -->
+    <!-- LOW ATTENDANCE ALERT -->
     <div id="alertBox" class="alert hidden">
         <i class="fas fa-exclamation-triangle"></i>
         <span id="alertMessage"></span>
     </div>
+
 </div>
 
-<!-- QR Scanner Modal -->
+<!-- ==========================================
+     QR Scanner Modal
+=========================================== -->
 <div id="qrModal" class="qr-modal hidden">
     <div class="qr-modal-content">
         <div class="qr-modal-header">
@@ -147,7 +144,9 @@
     </div>
 </div>
 
-<!-- Face Attendance Modal -->
+<!-- ==========================================
+     Face Attendance Modal
+=========================================== -->
 <div id="faceModal" class="qr-modal hidden">
     <div class="qr-modal-content" style="max-width: 600px;">
         <div class="qr-modal-header">
@@ -157,9 +156,12 @@
         <div class="qr-modal-body">
             <!-- Step 1: Session ID -->
             <div id="faceStep1">
-                <p class="text-center mb-3">Enter the Session ID provided by your teacher</p>
+                <p class="text-center mb-3">Session ID auto-filled from live session</p>
                 <div style="max-width: 300px; margin: 0 auto;">
-                    <input type="number" id="faceSessionId" class="form-control text-center" placeholder="Enter Session ID" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1.2rem; margin-bottom: 20px;">
+                    <input type="number" id="faceSessionId" class="form-control text-center"
+                        placeholder="Session ID"
+                        style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px;
+                               font-size: 1.2rem; margin-bottom: 20px; text-align:center;">
                     <button class="qr-btn w-100" onclick="startFaceAttendance()">
                         <i class="fas fa-camera"></i> Open Camera
                     </button>
@@ -168,29 +170,43 @@
 
             <!-- Step 2: Camera & Challenges -->
             <div id="faceStep2" class="hidden">
-                <div class="camera-container" style="position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
-                    <video id="faceVideo" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover;"></video>
+                <div class="camera-container" style="position: relative; width: 100%; aspect-ratio: 4/3;
+                     background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
+                    <video id="faceVideo" autoplay playsinline muted
+                        style="width: 100%; height: 100%; object-fit: cover;"></video>
                     <canvas id="faceCanvas" style="display: none;"></canvas>
                     
                     <!-- Challenge Overlay -->
-                    <div id="challengeBox" class="challenge-overlay" style="position: absolute; top: 20px; left: 0; right: 0; text-align: center;">
-                        <div id="challengeText" style="background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 30px; display: inline-block; font-weight: 600; font-size: 1.1rem; border: 2px solid #3498db;">
+                    <div id="challengeBox" class="challenge-overlay"
+                        style="position: absolute; top: 20px; left: 0; right: 0; text-align: center;">
+                        <div id="challengeText"
+                            style="background: rgba(0,0,0,0.7); color: white; padding: 10px 20px;
+                                   border-radius: 30px; display: inline-block; font-weight: 600;
+                                   font-size: 1.1rem; border: 2px solid #3498db;">
                             Initializing...
                         </div>
                     </div>
 
                     <!-- Progress Indicator -->
-                    <div class="progress-container" style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
+                    <div class="progress-container"
+                        style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
                         <div class="d-flex justify-content-between mb-1">
-                            <span id="challengeStatus" style="color: white; font-size: 0.85rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">Verification in progress...</span>
-                            <span id="challengeProgressText" style="color: white; font-size: 0.85rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">0%</span>
+                            <span id="challengeStatus"
+                                style="color: white; font-size: 0.85rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">
+                                Verification in progress...
+                            </span>
+                            <span id="challengeProgressText"
+                                style="color: white; font-size: 0.85rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">
+                                0%
+                            </span>
                         </div>
                         <div style="height: 8px; background: rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden;">
-                            <div id="challengeProgress" style="width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s ease;"></div>
+                            <div id="challengeProgress"
+                                style="width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s ease;">
+                            </div>
                         </div>
                     </div>
                 </div>
-                
                 <div id="faceStatusMsg" class="text-center" style="font-weight: 500; color: #666;">
                     Please stay in the center of the frame
                 </div>
@@ -199,7 +215,7 @@
             <!-- Step 3: Success -->
             <div id="faceStep3" class="hidden text-center py-4">
                 <div style="font-size: 4rem; color: #2ecc71; margin-bottom: 20px;">
-                    <i class="fas fa-check-circle animate-bounce"></i>
+                    <i class="fas fa-check-circle"></i>
                 </div>
                 <h3 style="color: #27ae60;">Verification Successful!</h3>
                 <p class="text-muted">Attendance marked successfully.</p>

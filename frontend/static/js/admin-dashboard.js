@@ -1088,13 +1088,20 @@ async function loadAttendanceTrendChart() {
 async function startDatasetSync() {
     const syncBtn = document.getElementById('syncBtn');
     const syncStatus = document.getElementById('syncStatus');
+    const syncResultsWrapper = document.getElementById('syncResultsWrapper');
     const syncResults = document.getElementById('syncResults');
+    const syncBadge = document.getElementById('syncBadge');
 
-    // Reset UI
     syncBtn.disabled = true;
+    syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
     syncStatus.classList.remove('d-none');
-    syncResults.classList.add('d-none');
+    syncResultsWrapper.classList.add('d-none');
     syncResults.innerHTML = '';
+    
+    if (syncBadge) {
+        syncBadge.className = 'sync-badge processing';
+        syncBadge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing';
+    }
 
     try {
         const response = await apiCall("/api/admin/sync_faces", {
@@ -1105,25 +1112,35 @@ async function startDatasetSync() {
         const data = await response.json();
 
         if (data.status === "success") {
-            syncResults.classList.remove('d-none');
+            syncResultsWrapper.classList.remove('d-none');
+            
             data.results.forEach(msg => {
                 const div = document.createElement('div');
-                div.style.padding = '5px 10px';
-                div.style.marginBottom = '2px';
-                div.style.borderRadius = '4px';
-                div.style.backgroundColor = msg.includes('✅') ? '#e8f5e9' : (msg.includes('⚠️') ? '#fff3e0' : '#ffebee');
-                div.style.color = msg.includes('✅') ? '#2e7d32' : (msg.includes('⚠️') ? '#ef6c00' : '#c62828');
-                div.style.borderLeft = `4px solid ${msg.includes('✅') ? '#4caf50' : (msg.includes('⚠️') ? '#ff9800' : '#f44336')}`;
-                div.textContent = msg;
+                
+                if (msg.includes('✅') || msg.includes('successfully') || msg.includes('Success')) {
+                    div.className = 'sync-log-item success';
+                } else if (msg.includes('⚠️') || msg.includes('already exists') || msg.includes('skipped')) {
+                    div.className = 'sync-log-item warning';
+                } else if (msg.includes('❌') || msg.includes('failed') || msg.includes('error')) {
+                    div.className = 'sync-log-item error';
+                } else {
+                    div.className = 'sync-log-item info';
+                }
+                
+                div.innerHTML = `<span class="sync-log-dot"></span> ${msg}`;
                 syncResults.appendChild(div);
             });
 
             Swal.fire({
-                title: "Sync Finished!",
-                text: "Student dataset has been processed.",
-                icon: "success",
-                confirmButtonColor: "#27ae60"
+                title: 'Synchronization Complete',
+                text: 'Student face datasets have been processed successfully.',
+                icon: 'success',
+                confirmButtonColor: '#2c3e50',
+                customClass: {
+                    popup: 'custom-swal'
+                }
             });
+            
             updateFaceStats();
         } else {
             throw new Error(data.message || "Unknown error occurred");
@@ -1131,17 +1148,25 @@ async function startDatasetSync() {
     } catch (err) {
         console.error("Sync error:", err);
         Swal.fire({
-            title: "Sync Failed",
-            text: err.message,
-            icon: "error",
-            confirmButtonColor: "#e74c3c"
+            title: 'Synchronization Failed',
+            text: err.message || 'An unexpected error occurred',
+            icon: 'error',
+            confirmButtonColor: '#2c3e50',
+            customClass: {
+                popup: 'custom-swal'
+            }
         });
     } finally {
         syncBtn.disabled = false;
+        syncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Start Synchronization';
         syncStatus.classList.add('d-none');
+        
+        if (syncBadge) {
+            syncBadge.className = 'sync-badge ready';
+            syncBadge.innerHTML = '<i class="fas fa-circle me-1" style="font-size: 6px;"></i> Ready';
+        }
     }
 }
-
 async function updateFaceStats() {
     try {
         const response = await apiCall("/api/admin/face_stats");
