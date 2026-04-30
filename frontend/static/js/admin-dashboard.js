@@ -396,7 +396,7 @@ async function loadTeachers() {
       '<tr><td colspan="4" class="text-center text-danger">Error loading teachers</td></tr>';
   }
 }
-m;
+
 // ============================================
 // SECTION NAVIGATION
 // ============================================
