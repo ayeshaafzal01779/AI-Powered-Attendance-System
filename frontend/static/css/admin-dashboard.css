@@ -149,7 +149,6 @@ body {
 /* DATATABLES BLACK HEADER FIX - v8             */
 /* ============================================ */
 
-/* v8 ke liye updated selectors */
 .dataTable-table thead tr th {
   background-color: #212529 !important;
   color: #ffffff !important;
