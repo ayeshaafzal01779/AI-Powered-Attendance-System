@@ -72,6 +72,214 @@
           </div>
         </div>
 
+<<<<<<< HEAD
+        <div class="main-content">
+            <!-- Active Session - NO MODE BUTTONS HERE, only session info -->
+            <div id="activeSession" class="active-session hidden">
+                <div class="session-info">
+                    <div class="session-title">
+                        <span class="live-indicator"></span>
+                        <i class="fas fa-video"></i> Active Session: <span id="activeCourseName">---</span>
+                    </div>
+                    <div class="present-count">
+                        <i class="fas fa-user-check"></i> Present: <span id="presentCount">0</span> / <span id="totalStudents">0</span>
+                    </div>
+                </div>
+                <div class="session-id-box mt-2">
+                    <small><strong>Session ID:</strong> <span id="activeSessionId">--</span></small>
+                    <button class="copy-session-icon-btn" onclick="copySessionId(event)" type="button" title="Copy Session ID">
+                        <i id="copySessionIcon" class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mode Selector - SEPARATE SECTION -->
+            <div id="modeSelector" class="mode-selector-container hidden">
+                <div class="mode-buttons">
+                    <button class="mode-btn" onclick="selectMode('QR', this)">
+                        <i class="fas fa-qrcode"></i> QR Code
+                    </button>
+                    <button class="mode-btn" onclick="selectMode('Face', this)">
+                        <i class="fas fa-camera"></i> Face Recognition
+                    </button>
+                    <button class="mode-btn" onclick="selectMode('Manual', this)">
+                        <i class="fas fa-edit"></i> Manual Entry
+                    </button>
+                </div>
+            </div>
+
+            <!-- QR Section -->
+            <div id="qrSection" class="qr-section hidden">
+                <div class="qr-card">
+                    <div class="qr-header">
+                        <h3><i class="fas fa-qrcode"></i> QR Code Attendance</h3>
+                    </div>
+                    
+                    <div class="qr-body">
+                        <div class="qr-display">
+                            <div id="qrPlaceholder" class="qr-placeholder">
+                                <i class="fas fa-qrcode fa-4x mb-3" style="color: #2980b9; opacity: 0.3;"></i>
+                                <p class="fw-bold mb-1">Ready to Start</p>
+                                <small>Generate a secure QR code for students</small>
+                            </div>
+                            <img id="qrImg" class="hidden" src="" alt="QR Code">
+                        </div>
+                        
+                        <div class="qr-controls border-0 py-3 px-4 rounded-4" style="background: #f8fafc;">
+                            <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-3">
+                                
+                                <div class="qr-timer shadow-sm border-0" id="qrTimerBox" style="display:none;">
+                                    <i class="fas fa-clock"></i>
+                                    <span class="timer-num" id="qrCountdown">--</span>
+                                    <span class="text-muted small fw-bold">SEC</span>
+                                </div>
+                                
+                                <div class="qr-buttons">
+                                    <button id="startQrBtn" class="btn-start-qr px-4 py-2 shadow-sm" onclick="activateQRMode()">
+                                        <i class="fas fa-play me-2"></i> Start QR
+                                    </button>
+                                    <button id="stopQrBtn" class="btn-stop-qr hidden px-4 py-2 shadow-sm" onclick="deactivateQRMode()">
+                                        <i class="fas fa-stop me-2"></i> Stop
+                                    </button>
+                                    <button id="refreshQrBtn" class="btn-refresh-qr hidden px-3 py-2" onclick="manualRefreshQR()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <p id="qrMsg" class="qr-message w-100 py-2 border-0" style="background: #ebf5ff; color: #2980b9; font-weight: 500;">
+                            <i class="fas fa-info-circle me-2"></i> Ready to generate QR code.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Face Section -->
+            <div id="faceSection" class="face-section hidden">
+                <div class="qr-card">
+                    <div class="qr-header">
+                        <h3><i class="fas fa-camera"></i> Face Recognition Mode</h3>
+                    </div>
+                    
+                    <div class="qr-body">
+                        <div class="qr-display w-100">
+                            <div id="facePlaceholder" class="qr-placeholder w-100" style="height: 250px;">
+                                <i class="fas fa-user-shield fa-4x mb-3 text-primary"></i>
+                                <h5>Face Recognition Mode Active</h5>
+                                <p class="px-4 text-center">Students can now mark attendance using their device cameras by providing the Session ID.</p>
+                                <div class="session-id-display mt-2 p-2 bg-light border rounded">
+                                    <span class="text-muted small">Share this ID:</span>
+                                    <strong class="text-primary ms-1" id="faceSessionIdDisplay">--</strong>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="qr-controls border-0 bg-transparent p-0">
+                            <div class="d-flex flex-column align-items-center gap-3 w-100">
+                                <button id="startFaceBtn" class="btn btn-primary btn-lg w-100" style="max-width: 400px; border-radius: 12px; font-weight: 600;" onclick="activateFaceMode()">
+                                    <i class="fas fa-play me-2"></i> Activate Face Mode
+                                </button>
+                                <button id="stopFaceBtn" class="btn btn-danger btn-lg w-100 hidden" style="max-width: 400px; border-radius: 12px; font-weight: 600;" onclick="deactivateFaceMode()">
+                                    <i class="fas fa-stop me-2"></i> Stop Face Mode
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <p id="faceMsg" class="qr-message w-100">
+                            <i class="fas fa-info-circle"></i> Click "Activate Face Mode" to begin.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Section -->
+            <div id="manualSection" class="manual-section hidden">
+                <div class="manual-card">
+                    <div class="manual-header">
+                        <h3><i class="fas fa-edit"></i> Manual Entry</h3>
+                        <div class="manual-actions">
+                            <button class="manual-btn manual-btn-present" onclick="markSelectedAttendance('Present')" type="button">
+                                <i class="fas fa-check"></i> Mark Selected Present
+                            </button>
+                            <button class="manual-btn manual-btn-absent" onclick="markSelectedAttendance('Absent')" type="button">
+                                <i class="fas fa-times"></i> Mark Selected Absent
+                            </button>
+                        </div>
+                    </div>
+                    <div class="manual-controls">
+                        <div class="manual-search">
+                            <i class="fas fa-search"></i>
+                            <input id="manualSearch" type="text" placeholder="Search by name or roll no..." oninput="filterManualRoster()" />
+                        </div>
+                        <label class="manual-selectall">
+                            <input id="manualSelectAll" type="checkbox" onchange="toggleSelectAllManual(this.checked)" />
+                            Select all (filtered)
+                        </label>
+                    </div>
+                    <div class="manual-table-wrap">
+                        <table class="manual-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:44px;"></th>
+                                    <th>Student</th>
+                                    <th style="width:140px;">Roll No</th>
+                                    <th style="width:120px;">Status</th>
+                                    <th style="width:160px;">Last Marked</th>
+                                    <th style="width:140px;">Method</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manualTableBody">
+                                <tr><td colspan="6" class="text-center">Start a session to use manual entry</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="manual-hint">
+                        Tip: Manual Entry sets method as <strong>Teacher Marked</strong> (not QR).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance List -->
+            <div id="attendanceList" class="attendance-list hidden">
+                <div class="attendance-header">
+                    <h3><i class="fas fa-users"></i> Attendance List</h3>
+                    <div class="attendance-header-actions">
+                        <button class="download-sheet-btn" onclick="downloadSessionSheet('excel')" type="button" title="Download Excel sheet">
+                            <i class="fas fa-file-excel"></i> Excel
+                        </button>
+                        <button class="download-pdf-btn" onclick="downloadSessionSheet('pdf')" type="button" title="Download PDF report">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                        <button class="close-session-btn" onclick="closeSession()" type="button">
+                            <i class="fas fa-power-off"></i> Close Session
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="attendance-date">
+                    <i class="fas fa-calendar-alt"></i> <span id="todayDate"></span>
+                </div>
+                
+                <div class="table-container">
+                    <table class="attendance-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Student Name</th>
+                                <th>Roll No</th>
+                                <th>Time</th>
+                                <th>Method</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody">
+                            <tr><td colspan="6" class="text-center">No active session</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+=======
         <!-- Mode Selector - SEPARATE SECTION -->
         <div id="modeSelector" class="mode-selector-container hidden">
           <div class="mode-buttons">
@@ -85,6 +293,7 @@
               <i class="fas fa-edit"></i> Manual Entry
             </button>
           </div>
+>>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
         </div>
 
         <!-- QR Section -->
