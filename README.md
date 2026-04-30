@@ -88,24 +88,21 @@ python backend/app.py
 
 # Open browser: http://localhost:5000
 ```
-
 ---
 
 ## User Roles
-
-Role Access
-Admin Manage users, departments, fines, reports
-Teacher Start sessions, mark attendance, download reports
-Student View attendance, scan QR, face recognition
+Role	Access
+Admin	Manage users, departments, fines, reports
+Teacher	Start sessions, mark attendance, download reports
+Student	View attendance, scan QR, face recognition
 
 ---
 
 ## Team Members
-
-Name Roll No
-Ayesha Afzal BIT22022
-Meerab Gohar BIT22029
-Aqsa Bibi BIT21005
+Name	Roll No
+Ayesha Afzal	BIT22022
+Meerab Gohar	BIT22029
+Aqsa Bibi	BIT21005
 
 Program: BSIT (8th Semester, 2022-2026)
 University: University of the Punjab, Gujranwala Campus
@@ -113,15 +110,10 @@ University: University of the Punjab, Gujranwala Campus
 ---
 
 ## Academic Purpose
-
 This project is developed for academic purposes as part of the Final Year Design Project (FYDP).
 
 ---
 
 ## License
-
 This project is for educational and academic use only.
-
-```
-
 ```
