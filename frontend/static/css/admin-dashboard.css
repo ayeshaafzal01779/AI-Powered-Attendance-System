@@ -145,6 +145,7 @@ body {
   background-color: var(--btn-hover-color);
 }
 
+<<<<<<< HEAD
 /* ============================================
    FACE SYNC - PROFESSIONAL REDESIGN
    ============================================ */
@@ -531,3 +532,36 @@ body {
         justify-content: center;
     }
 }
+=======
+/* ============================================ */
+/* DATATABLES BLACK HEADER FIX - v8             */
+/* ============================================ */
+
+/* v8 ke liye updated selectors */
+.dataTable-table thead tr th {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* Wrapper ke saath */
+[class*="dataTable"] table thead th {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+}
+
+/* Agar table ke paas dataTable-table class hai */
+table.dataTable-table thead th {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+}
+
+/* Sorting arrows */
+[class*="dataTable"] .dataTable-sorter::before {
+  border-top-color: #ffffff !important;
+}
+
+[class*="dataTable"] .dataTable-sorter::after {
+  border-bottom-color: #ffffff !important;
+}
+>>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
