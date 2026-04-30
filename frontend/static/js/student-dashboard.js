@@ -111,20 +111,14 @@ async function apiCall(url, options = {}) {
 // ============================================
 // LIVE SESSION POLLING
 // ============================================
-
 async function pollActiveSessions() {
   try {
     const response = await fetch(`${API_BASE_URL}/active_sessions_for_student`, {
       credentials: 'include'
     });
     
-    if (!response) {
-      console.log('Polling: No response received');
-      return;
-    }
-    
     if (response.status === 401 || response.status === 403) {
-      console.log('Polling: Auth error, continuing to poll');
+      console.log('Polling: Auth error');
       return;
     }
     
@@ -134,21 +128,19 @@ async function pollActiveSessions() {
     }
     
     const data = await response.json();
-    console.log('Polling: Received data', data);
     
     if (data.status === 'success') {
       renderLiveSessionBanner(data.sessions || []);
-    } else {
-      console.log('Polling: Unexpected response format', data);
     }
   } catch (err) {
-    console.error('Polling error:', err);
+    console.warn('Polling network error (will retry):', err.message);
   }
 }
 
 function startPolling() {
-  console.log('Starting live session polling...');
+  console.log('Live session polling started');
   pollActiveSessions();
+  if (activeSessionPollingInterval) clearInterval(activeSessionPollingInterval);
   activeSessionPollingInterval = setInterval(pollActiveSessions, 10000);
 }
 
@@ -162,7 +154,17 @@ function renderLiveSessionBanner(sessions) {
         return;
     }
 
-    if (!sessions || sessions.length === 0) {
+    // Filter valid sessions only
+    const validSessions = (sessions || []).filter(s => {
+        return s && 
+               s.session_id && 
+               s.course_name && 
+               s.course_name !== '' &&
+               s.course_name !== 'null' &&
+               s.teacher_name;
+    });
+    
+    if (!validSessions || validSessions.length === 0) {
         bannerContainer.innerHTML = "";
         bannerContainer.classList.add("hidden");
         currentLiveSessions = [];
@@ -171,16 +173,16 @@ function renderLiveSessionBanner(sessions) {
 
     bannerContainer.classList.remove("hidden");
 
-    const newSnapshot = sessions.map(s => `${s.session_id}:${s.mode}`).sort().join(",");
+    const newSnapshot = validSessions.map(s => `${s.session_id}:${s.mode}`).sort().join(",");
     const oldSnapshot = (currentLiveSessions || []).map(s => `${s.session_id}:${s.mode}`).sort().join(",");
     
     if (newSnapshot === oldSnapshot && bannerContainer.children.length > 0) {
         return;
     }
 
-    currentLiveSessions = [...sessions];
+    currentLiveSessions = [...validSessions];
 
-    bannerContainer.innerHTML = sessions.map(s => {
+    bannerContainer.innerHTML = validSessions.map(s => {
         const mode = (s.mode || 'Pending').toLowerCase();
         let buttonsHtml = '';
 
@@ -223,10 +225,10 @@ function renderLiveSessionBanner(sessions) {
                 <span class="live-session-mode">${s.mode || 'PENDING'} MODE</span>
             </div>
             <div class="live-session-body">
-                <h2 class="live-subject-name">${s.course_name}</h2>
+                <h2 class="live-subject-name">${escapeHtml(s.course_name)}</h2>
                 
                 <div class="live-info-row">
-                    <span>Teacher: <strong>${s.teacher_name}</strong></span>
+                    <span>Teacher: <strong>${escapeHtml(s.teacher_name)}</strong></span>
                     <span class="info-separator">|</span>
                     <span>Room: <strong>${s.room_no || 'N/A'}</strong></span>
                     <span class="info-separator">|</span>
@@ -245,6 +247,16 @@ function renderLiveSessionBanner(sessions) {
     }).join("");
 }
 
+// Helper function to escape HTML and prevent XSS
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 function hideLiveCard(sessionId) {
   const card = document.getElementById(`live-card-${sessionId}`);
   if (card) {
@@ -596,8 +608,6 @@ function enterSessionIdForSession(sessionId) {
   });
 }
 
-
-
 // ============================================
 // MARK ATTENDANCE
 // ============================================
@@ -625,8 +635,8 @@ async function markAttendance({ sessionId, mode, qrPayload = null, cardSessionId
         showConfirmButton: false,
         timer: 3000,
         timerProgressBar: true,
-        background: '#ffffff',
-        color: '#1e293b',
+        background: '#0f172a',
+        color: '#ffffff',
         iconColor: '#10b981',
         didOpen: (toast) => {
           toast.style.borderRadius = '12px';
@@ -649,7 +659,7 @@ async function markAttendance({ sessionId, mode, qrPayload = null, cardSessionId
         icon: 'error',
         title: 'Failed',
         text: data.message || 'Failed to mark attendance',
-        confirmButtonColor: '#2c3e50'
+        confirmButtonColor: '#eceff3'
       });
     }
   } catch (err) {
@@ -916,7 +926,14 @@ async function captureAndMatch() {
 // LOGOUT
 // ============================================
 
+// Add this to your existing logout function
 async function logout() {
+  // Stop polling when logging out
+  if (activeSessionPollingInterval) {
+    clearInterval(activeSessionPollingInterval);
+    activeSessionPollingInterval = null;
+  }
+  
   try {
     await fetch(`${API_BASE_URL}/logout`, { method: "POST", credentials: "include" });
   } catch (err) {
@@ -925,6 +942,13 @@ async function logout() {
   localStorage.clear();
   window.location.href = "/";
 }
+
+// Also add cleanup when page is unloaded
+window.addEventListener('beforeunload', function() {
+  if (activeSessionPollingInterval) {
+    clearInterval(activeSessionPollingInterval);
+  }
+});
 
 // ============================================
 // FINES

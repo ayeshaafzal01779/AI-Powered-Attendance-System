@@ -630,64 +630,63 @@ async function loadCoursesTable(semId) {
   if (semestersPage) semestersPage.classList.add("d-none");
   if (coursesPage) coursesPage.classList.remove("d-none");
 
-  const selectedSemesterLabelEl = document.getElementById(
-    "selectedSemesterLabel",
-  );
+  const selectedSemesterLabelEl = document.getElementById("selectedSemesterLabel");
   if (selectedSemesterLabelEl) {
-    selectedSemesterLabelEl.textContent =
-      selectedSemesterLabelText || `Semester ID: ${semId}`;
+    selectedSemesterLabelEl.textContent = selectedSemesterLabelText || `Semester ID: ${semId}`;
   }
 
   const coursesTableBody = document.getElementById("coursesTableBody");
   if (coursesTableBody) {
-    coursesTableBody.innerHTML = `
-      <tr><td colspan="4" class="text-center text-muted py-4">Loading...</td></tr>
-    `;
+    coursesTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Loading...</td></tr>`;
   }
 
   try {
-    const response = await apiCall(
-      `/admin_courses?sem_id=${encodeURIComponent(semId)}`,
-    );
+    const response = await apiCall(`/admin_courses?sem_id=${encodeURIComponent(semId)}`);
     if (!response) return;
 
-    const data = await response.json();
-    if (data.status !== "success" || !Array.isArray(data.courses)) {
-      throw new Error("Invalid courses response");
+    // Status check pehle
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Server error: ${response.status}`);
     }
+
+    const data = await response.json();
+    
+    //  Loose check 
+    if (data.status !== "success") {
+      throw new Error(data.message || "Failed to load courses");
+    }
+
+    const courses = data.courses || [];
 
     if (!coursesTableBody) return;
 
-    if (data.courses.length === 0) {
-      coursesTableBody.innerHTML = `
-        <tr><td colspan="4" class="text-center text-muted py-4">No courses found</td></tr>
-      `;
+    if (courses.length === 0) {
+      coursesTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">No courses found for this semester</td></tr>`;
       return;
     }
 
     coursesTableBody.innerHTML = "";
-    data.courses.forEach((course) => {
-      const courseTypeLabel = course.is_compulsory ? "Compulsory" : "Elective";
-
+    courses.forEach((course) => {
+      // course_type use karo, is_compulsory fallback
+      const courseTypeLabel = course.course_type || (course.is_compulsory ? "Compulsory" : "Elective");
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${course.course_code}</td>
-        <td>${course.course_name}</td>
+        <td>${course.course_code || '-'}</td>
+        <td>${course.course_name || '-'}</td>
         <td>${course.credit_hours ?? "-"}</td>
         <td>${courseTypeLabel}</td>
       `;
       coursesTableBody.appendChild(tr);
     });
+
   } catch (err) {
     console.error("Error loading courses:", err);
     if (coursesTableBody) {
-      coursesTableBody.innerHTML = `
-        <tr><td colspan="4" class="text-center text-danger py-4">Unable to load courses</td></tr>
-      `;
+      coursesTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-4">Error: ${err.message}</td></tr>`;
     }
   }
 }
-
 function logout() {
   localStorage.clear();
   window.location.href = "/";
@@ -1176,9 +1175,7 @@ async function loadAttendanceTrendChart() {
 // ============================================
 // FACE DATA SYNC
 // ============================================
-
 async function startDatasetSync() {
-<<<<<<< HEAD
     const syncBtn = document.getElementById('syncBtn');
     const syncStatus = document.getElementById('syncStatus');
     const syncResultsWrapper = document.getElementById('syncResultsWrapper');
@@ -1195,27 +1192,15 @@ async function startDatasetSync() {
         syncBadge.className = 'sync-badge processing';
         syncBadge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing';
     }
-=======
-  const syncBtn = document.getElementById("syncBtn");
-  const syncStatus = document.getElementById("syncStatus");
-  const syncResults = document.getElementById("syncResults");
 
-  // Reset UI
-  syncBtn.disabled = true;
-  syncStatus.classList.remove("d-none");
-  syncResults.classList.add("d-none");
-  syncResults.innerHTML = "";
->>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
+    try {
+        const response = await apiCall("/api/admin/sync_faces", {
+            method: "POST",
+        });
 
-  try {
-    const response = await apiCall("/api/admin/sync_faces", {
-      method: "POST",
-    });
+        if (!response) throw new Error("No response from server");
+        const data = await response.json();
 
-    if (!response) throw new Error("No response from server");
-    const data = await response.json();
-
-<<<<<<< HEAD
         if (data.status === "success") {
             syncResultsWrapper.classList.remove('d-none');
             
@@ -1270,52 +1255,7 @@ async function startDatasetSync() {
             syncBadge.className = 'sync-badge ready';
             syncBadge.innerHTML = '<i class="fas fa-circle me-1" style="font-size: 6px;"></i> Ready';
         }
-=======
-    if (data.status === "success") {
-      syncResults.classList.remove("d-none");
-      data.results.forEach((msg) => {
-        const div = document.createElement("div");
-        div.style.padding = "5px 10px";
-        div.style.marginBottom = "2px";
-        div.style.borderRadius = "4px";
-        div.style.backgroundColor = msg.includes("✅")
-          ? "#e8f5e9"
-          : msg.includes("⚠️")
-            ? "#fff3e0"
-            : "#ffebee";
-        div.style.color = msg.includes("✅")
-          ? "#2e7d32"
-          : msg.includes("⚠️")
-            ? "#ef6c00"
-            : "#c62828";
-        div.style.borderLeft = `4px solid ${msg.includes("✅") ? "#4caf50" : msg.includes("⚠️") ? "#ff9800" : "#f44336"}`;
-        div.textContent = msg;
-        syncResults.appendChild(div);
-      });
-
-      Swal.fire({
-        title: "Sync Finished!",
-        text: "Student dataset has been processed.",
-        icon: "success",
-        confirmButtonColor: "#27ae60",
-      });
-      updateFaceStats();
-    } else {
-      throw new Error(data.message || "Unknown error occurred");
->>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
     }
-  } catch (err) {
-    console.error("Sync error:", err);
-    Swal.fire({
-      title: "Sync Failed",
-      text: err.message,
-      icon: "error",
-      confirmButtonColor: "#e74c3c",
-    });
-  } finally {
-    syncBtn.disabled = false;
-    syncStatus.classList.add("d-none");
-  }
 }
 async function updateFaceStats() {
   try {
