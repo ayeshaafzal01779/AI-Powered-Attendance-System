@@ -112,29 +112,23 @@ async function apiCall(url, options = {}) {
 // LIVE SESSION POLLING
 // ============================================
 async function pollActiveSessions() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/active_sessions_for_student`, {
-      credentials: 'include'
-    });
-    
-    if (response.status === 401 || response.status === 403) {
-      console.log('Polling: Auth error');
-      return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/active_sessions_for_student`, {
+            credentials: 'include'
+        });
+
+        if (!response || response.status === 401 || response.status === 403) {
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            renderLiveSessionBanner(data.sessions);
+        }
+    } catch (err) {
+        console.error('Polling error:', err);
     }
-    
-    if (!response.ok) {
-      console.log('Polling: Server error', response.status);
-      return;
-    }
-    
-    const data = await response.json();
-    
-    if (data.status === 'success') {
-      renderLiveSessionBanner(data.sessions || []);
-    }
-  } catch (err) {
-    console.warn('Polling network error (will retry):', err.message);
-  }
 }
 
 function startPolling() {
@@ -613,64 +607,38 @@ function enterSessionIdForSession(sessionId) {
 // ============================================
 
 async function markAttendance({ sessionId, mode, qrPayload = null, cardSessionId = null }) {
-  showMessage("Processing attendance...", "success");
+    showMessage("Processing attendance...", "success");
 
-  try {
-    const payload = { session_id: sessionId, mode: mode };
-    if (qrPayload) payload.qr_payload = qrPayload;
+    try {
+        const payload = { session_id: sessionId, mode: mode };
+        if (qrPayload) payload.qr_payload = qrPayload;
 
-    const response = await fetch(`${API_BASE_URL}/mark_attendance`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+        const response = await fetch(`${API_BASE_URL}/mark_attendance`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
 
-    const data = await response.json();
+        const data = await response.json();
 
-    if (data.status === "success") {
-      const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
-        background: '#0f172a',
-        color: '#ffffff',
-        iconColor: '#10b981',
-        didOpen: (toast) => {
-          toast.style.borderRadius = '12px';
-          toast.style.boxShadow = '0 10px 20px rgba(0,0,0,0.15)';
-          toast.style.borderLeft = '5px solid #10b981';
+        if (data.status === "success") {
+            showMessage("✅ Attendance marked successfully!", "success");
+            
+            const cardId = cardSessionId || sessionId;
+            
+            // currentLiveSessions se yeh session hata do IMMEDIATELY
+            currentLiveSessions = currentLiveSessions.filter(s => s.session_id !== cardId);
+            
+            hideLiveCard(cardId);
+            setTimeout(loadAttendance, 500);
+        } else {
+            showMessage("" + (data.message || "Failed to mark attendance"), "error");
         }
-      });
-      
-      Toast.fire({
-        icon: 'success',
-        title: 'Attendance Marked!',
-        text: 'Your attendance has been recorded successfully.'
-      });
-      
-      const cardId = cardSessionId || sessionId;
-      hideLiveCard(cardId);
-      setTimeout(loadAttendance, 500);
-    } else {
-      Swal.fire({
-        icon: 'error',
-        title: 'Failed',
-        text: data.message || 'Failed to mark attendance',
-        confirmButtonColor: '#eceff3'
-      });
+    } catch (err) {
+        console.error("Error marking attendance:", err);
+        showMessage("Network error. Please try again.", "error");
     }
-  } catch (err) {
-    console.error("Error marking attendance:", err);
-    Swal.fire({
-      icon: 'error',
-      title: 'Network Error',
-      text: 'Please try again.',
-      confirmButtonColor: '#2c3e50'
-    });
-  }
 }
 
 // ============================================
@@ -873,53 +841,49 @@ function finishChallenges() {
 }
 
 async function captureAndMatch() {
-  const video = document.getElementById('faceVideo');
-  const canvas = document.getElementById('faceCanvas');
-  const context = canvas.getContext('2d');
+    const video = document.getElementById('faceVideo');
+    const canvas = document.getElementById('faceCanvas');
+    const context = canvas.getContext('2d');
 
-  if (video.videoWidth === 0 || video.videoHeight === 0) {
-    setTimeout(captureAndMatch, 500);
-    return;
-  }
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const imageData = canvas.toDataURL('image/jpeg', 0.95);
-  const sessionId = document.getElementById('faceSessionId').value;
-
-  try {
-    const response = await apiCall('/api/mark_face_attendance', {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, image: imageData })
-    });
-
-    const data = await response.json();
-    if (data.status === 'success') {
-      showFaceStep(3);
-      if (faceCardSessionId) hideLiveCard(faceCardSessionId);
-      setTimeout(loadAttendance, 500);
-    } else {
-      Swal.fire({
-        icon: 'error',
-        title: 'Face Matching Failed',
-        text: data.message || 'Could not verify your face',
-        confirmButtonColor: '#2c3e50'
-      });
-      showFaceStep(1);
-      stopCamera();
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+        setTimeout(captureAndMatch, 500);
+        return;
     }
-  } catch (err) {
-    console.error("Match error:", err);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: 'Error matching face',
-      confirmButtonColor: '#2c3e50'
-    });
-    showFaceStep(1);
-    stopCamera();
-  }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    const sessionId = parseInt(document.getElementById('faceSessionId').value);
+
+    try {
+        const response = await apiCall('/api/mark_face_attendance', {
+            method: 'POST',
+            body: JSON.stringify({ session_id: sessionId, image: imageData })
+        });
+
+        const data = await response.json();
+        if (data.status === 'success') {
+            showFaceStep(3);
+            
+            // currentLiveSessions se hata do IMMEDIATELY
+            if (faceCardSessionId) {
+                currentLiveSessions = currentLiveSessions.filter(s => s.session_id !== faceCardSessionId);
+                hideLiveCard(faceCardSessionId);
+            }
+            
+            setTimeout(loadAttendance, 500);
+        } else {
+            showMessage(data.message || "Face matching failed", "error");
+            showFaceStep(1);
+            stopCamera();
+        }
+    } catch (err) {
+        console.error("Match error:", err);
+        showMessage("Error matching face", "error");
+        showFaceStep(1);
+        stopCamera();
+    }
 }
 
 // ============================================
