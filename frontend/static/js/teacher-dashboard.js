@@ -310,26 +310,22 @@ async function startSession(sectionId, courseCode) {
 function selectMode(mode, button) {
     const isAlreadyActive = button.classList.contains('active');
 
-    // Remove active class from all buttons
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
     
     const qrSection = document.getElementById('qrSection');
     const faceSection = document.getElementById('faceSection');
     const manualSection = document.getElementById('manualSection');
     
-    // Hide all sections
     if (qrSection) qrSection.classList.add('hidden');
     if (faceSection) faceSection.classList.add('hidden');
     if (manualSection) manualSection.classList.add('hidden');
 
     stopFaceRecognition();
 
-    // If it was already active, we just toggle it off and return
     if (isAlreadyActive) {
         return;
     }
 
-    // Otherwise, activate the clicked button and show its section
     button.classList.add('active');
     
     if (mode === 'QR') {
@@ -338,49 +334,38 @@ function selectMode(mode, button) {
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const qrImg = document.getElementById('qrImg');
         const startBtn = document.getElementById('startQrBtn');
-        const activeQrControls = document.getElementById('activeQrControls');
-        const qrTimerContainer = document.getElementById('qrTimerContainer');
-        const qrCountdown = document.getElementById('qrCountdown');
         const qrMsg = document.getElementById('qrMsg');
-        
-        if (qrPlaceholder) {
-            qrPlaceholder.innerHTML = `
-                <i class="fas fa-qrcode fa-4x mb-3 text-primary" style="opacity: 0.3;"></i>
-                <h5>QR Code Mode Ready</h5>
-                <p class="px-4 text-center">Generate a dynamic QR code that students can scan to mark their attendance instantly.</p>
-                <div id="qrTimerContainer" class="mt-2 hidden">
-                    <div class="qr-timer shadow-sm border-0 mx-auto" style="width: fit-content;">
-                        <i class="fas fa-clock"></i>
-                        <span class="timer-num" id="qrCountdown">--</span>
-                        <span class="text-muted small fw-bold">SEC</span>
-                    </div>
-                </div>
-            `;
-            qrPlaceholder.classList.remove('hidden');
+        const qrTimerBox = document.getElementById('qrTimerBox');
+
+        if (!isQRCodeActive) {
+            if (qrPlaceholder) {
+                qrPlaceholder.innerHTML = `
+                    <i class="fas fa-qrcode fa-4x mb-3" style="color: #2980b9; opacity: 0.3;"></i>
+                    <p class="fw-bold mb-1">Ready to Start</p>
+                    <small>Generate a secure QR code for students</small>
+                `;
+                qrPlaceholder.classList.remove('hidden');
+            }
+            if (qrImg) qrImg.classList.add('hidden');
+            if (startBtn) {
+                startBtn.classList.remove('hidden');
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fas fa-play me-2"></i> Start QR';
+            }
+            if (qrTimerBox) qrTimerBox.style.display = 'none';
+            if (qrMsg) {
+                qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR mode selected. Click "Start QR" to begin.';
+                qrMsg.style.color = '#2980b9';
+            }
         }
-        
-        if (qrImg) qrImg.classList.add('hidden');
-        if (startBtn) {
-            startBtn.classList.remove('hidden');
-            startBtn.disabled = false;
-            startBtn.innerHTML = '<i class="fas fa-play me-2"></i> Start QR Code';
+
+        if (!isQRCodeActive) {
+            if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+            qrRefreshInterval = null;
+            countdownInterval = null;
         }
-        if (activeQrControls) activeQrControls.classList.add('hidden');
-        if (qrTimerContainer) qrTimerContainer.classList.add('hidden');
-        if (qrCountdown) qrCountdown.textContent = '--';
-        
-        if (qrMsg) {
-            qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR mode selected. Click "Start QR Code" to begin.';
-            qrMsg.style.color = '#2980b9';
-        }
-        
-        isQRCodeActive = false;
-        
-        if (qrRefreshInterval) clearInterval(qrRefreshInterval);
-        if (countdownInterval) clearInterval(countdownInterval);
-        qrRefreshInterval = null;
-        countdownInterval = null;
-        
+
     } else if (mode === 'Face') {
         if (faceSection) faceSection.classList.remove('hidden');
         
@@ -420,19 +405,20 @@ async function activateQRMode() {
         alert('Please start a session first');
         return;
     }
-    
+
     const startBtn = document.getElementById('startQrBtn');
     const stopBtn = document.getElementById('stopQrBtn');
     const refreshBtn = document.getElementById('refreshQrBtn');
     const qrMsg = document.getElementById('qrMsg');
     const qrPlaceholder = document.getElementById('qrPlaceholder');
     const qrImg = document.getElementById('qrImg');
-    
+    const qrTimerBox = document.getElementById('qrTimerBox');
+
     if (!startBtn) return;
-    
+
     startBtn.disabled = true;
     startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    
+
     try {
         const response = await fetch(`${API_BASE_URL}/generate_qr`, {
             method: 'POST',
@@ -440,27 +426,26 @@ async function activateQRMode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: currentSessionId })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.status === 'success') {
             isQRCodeActive = true;
-            
+
             if (qrPlaceholder) qrPlaceholder.classList.add('hidden');
             if (qrImg) {
                 qrImg.classList.remove('hidden');
                 qrImg.src = 'data:image/png;base64,' + data.qr_code;
             }
-            
+
             startBtn.classList.add('hidden');
             if (stopBtn) stopBtn.classList.remove('hidden');
             if (refreshBtn) refreshBtn.classList.remove('hidden');
-            
+
+            if (qrTimerBox) qrTimerBox.style.display = 'flex';
+
             startCountdown(data.expires_in || 15);
-            
-            if (qrRefreshInterval) clearInterval(qrRefreshInterval);
-            qrRefreshInterval = setInterval(refreshQRCode, (data.expires_in || 15) * 1000);
-            
+
             if (qrMsg) {
                 qrMsg.innerHTML = '<i class="fas fa-check-circle"></i> QR Code active! Students can scan now.';
                 qrMsg.style.color = '#27ae60';
@@ -468,20 +453,18 @@ async function activateQRMode() {
         } else {
             alert('Failed to generate QR code');
             startBtn.disabled = false;
-            startBtn.innerHTML = '<i class="fas fa-play"></i> Start QR';
+            startBtn.innerHTML = '<i class="fas fa-play me-2"></i> Start QR';
         }
     } catch (err) {
         console.error('Error activating QR:', err);
         alert('Error generating QR code');
         startBtn.disabled = false;
-        startBtn.innerHTML = '<i class="fas fa-play"></i> Start QR';
+        startBtn.innerHTML = '<i class="fas fa-play me-2"></i> Start QR';
     }
 }
-
 // ============================================
 // DEACTIVATE QR MODE
 // ============================================
-
 async function deactivateQRMode() {
     const result = await Swal.fire({
         title: 'Stop QR Code?',
@@ -511,17 +494,19 @@ async function deactivateQRMode() {
 
         isQRCodeActive = false;
 
-        if (qrRefreshInterval) clearInterval(qrRefreshInterval);
         if (countdownInterval) clearInterval(countdownInterval);
-        qrRefreshInterval = null;
+        if (qrRefreshInterval) clearInterval(qrRefreshInterval);
         countdownInterval = null;
+        qrRefreshInterval = null;
+
+        const oldTimer = document.getElementById('qrTimerBox');
+        if (oldTimer) oldTimer.remove();
 
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const qrImg = document.getElementById('qrImg');
         const startBtn = document.getElementById('startQrBtn');
         const stopBtn = document.getElementById('stopQrBtn');
         const refreshBtn = document.getElementById('refreshQrBtn');
-        const qrCountdown = document.getElementById('qrCountdown');
         const qrMsg = document.getElementById('qrMsg');
 
         if (qrPlaceholder) {
@@ -534,15 +519,13 @@ async function deactivateQRMode() {
         }
 
         if (qrImg) qrImg.classList.add('hidden');
-        if (startBtn) startBtn.classList.remove('hidden');
+        if (startBtn) {
+            startBtn.classList.remove('hidden');
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-play me-2"></i> Start QR';
+        }
         if (stopBtn) stopBtn.classList.add('hidden');
         if (refreshBtn) refreshBtn.classList.add('hidden');
-        if (qrCountdown) qrCountdown.textContent = '--';
-
-        if (startBtn) {
-            startBtn.disabled = false;
-            startBtn.innerHTML = '<i class="fas fa-play"></i> Start QR';
-        }
 
         if (qrMsg) {
             qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR code stopped. Click "Start QR" to activate again.';
@@ -555,38 +538,42 @@ async function deactivateQRMode() {
 }
 
 // ============================================
-// START COUNTDOWN
+// COUNTDOWN QR MODE
 // ============================================
-
 function startCountdown(seconds) {
     if (countdownInterval) clearInterval(countdownInterval);
-    
+    if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+    qrRefreshInterval = null;
+
     let remaining = seconds;
     const countdownElement = document.getElementById('qrCountdown');
     if (!countdownElement) return;
-    
+
     countdownElement.textContent = remaining;
-    
-    countdownInterval = setInterval(() => {
+
+    countdownInterval = setInterval(async () => {
         remaining--;
-        countdownElement.textContent = remaining >= 0 ? remaining : 0;
-        
+
+        if (remaining >= 0) {
+            countdownElement.textContent = remaining;
+        }
+
         if (remaining <= 0) {
             clearInterval(countdownInterval);
+            countdownInterval = null;
             if (isQRCodeActive) {
-                refreshQRCode();
+                await refreshQRCode();
             }
         }
     }, 1000);
 }
 
 // ============================================
-// REFRESH QR CODE
+// REFRESH QR MODE
 // ============================================
-
 async function refreshQRCode() {
     if (!currentSessionId || !isQRCodeActive) return;
-    
+
     try {
         const response = await fetch(`${API_BASE_URL}/refresh_qr`, {
             method: 'POST',
@@ -594,33 +581,30 @@ async function refreshQRCode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: currentSessionId })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.status === 'success') {
             const qrImg = document.getElementById('qrImg');
             if (qrImg) {
                 qrImg.src = 'data:image/png;base64,' + data.qr_code;
             }
             startCountdown(data.expires_in || 15);
-            
-            const qrMsg = document.getElementById('qrMsg');
-            if (qrMsg) {
-                qrMsg.innerHTML = '<i class="fas fa-sync-alt"></i> QR Code refreshed!';
-                setTimeout(() => {
-                    if (isQRCodeActive) {
-                        qrMsg.innerHTML = '<i class="fas fa-check-circle"></i> QR Code active! Students can scan now.';
-                    }
-                }, 2000);
-            }
         }
     } catch (err) {
         console.error('Error refreshing QR:', err);
     }
 }
 
+// ============================================
+// MANUAL REFRESH QR MODE
+// ============================================
 async function manualRefreshQR() {
     if (isQRCodeActive) {
+        if (countdownInterval) clearInterval(countdownInterval);
+        if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+        countdownInterval = null;
+        qrRefreshInterval = null;
         await refreshQRCode();
     }
 }
@@ -677,7 +661,7 @@ async function deactivateFaceMode() {
             method: 'POST',
             body: JSON.stringify({ 
                 session_id: currentSessionId,
-                mode: 'Hybrid' // Default mode
+                mode: 'Pending'  
             })
         });
 

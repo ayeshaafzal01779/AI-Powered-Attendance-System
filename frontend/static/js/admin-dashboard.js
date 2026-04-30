@@ -1178,6 +1178,24 @@ async function loadAttendanceTrendChart() {
 // ============================================
 
 async function startDatasetSync() {
+<<<<<<< HEAD
+    const syncBtn = document.getElementById('syncBtn');
+    const syncStatus = document.getElementById('syncStatus');
+    const syncResultsWrapper = document.getElementById('syncResultsWrapper');
+    const syncResults = document.getElementById('syncResults');
+    const syncBadge = document.getElementById('syncBadge');
+
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    syncStatus.classList.remove('d-none');
+    syncResultsWrapper.classList.add('d-none');
+    syncResults.innerHTML = '';
+    
+    if (syncBadge) {
+        syncBadge.className = 'sync-badge processing';
+        syncBadge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing';
+    }
+=======
   const syncBtn = document.getElementById("syncBtn");
   const syncStatus = document.getElementById("syncStatus");
   const syncResults = document.getElementById("syncResults");
@@ -1187,6 +1205,7 @@ async function startDatasetSync() {
   syncStatus.classList.remove("d-none");
   syncResults.classList.add("d-none");
   syncResults.innerHTML = "";
+>>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
 
   try {
     const response = await apiCall("/api/admin/sync_faces", {
@@ -1196,6 +1215,62 @@ async function startDatasetSync() {
     if (!response) throw new Error("No response from server");
     const data = await response.json();
 
+<<<<<<< HEAD
+        if (data.status === "success") {
+            syncResultsWrapper.classList.remove('d-none');
+            
+            data.results.forEach(msg => {
+                const div = document.createElement('div');
+                
+                if (msg.includes('✅') || msg.includes('successfully') || msg.includes('Success')) {
+                    div.className = 'sync-log-item success';
+                } else if (msg.includes('⚠️') || msg.includes('already exists') || msg.includes('skipped')) {
+                    div.className = 'sync-log-item warning';
+                } else if (msg.includes('❌') || msg.includes('failed') || msg.includes('error')) {
+                    div.className = 'sync-log-item error';
+                } else {
+                    div.className = 'sync-log-item info';
+                }
+                
+                div.innerHTML = `<span class="sync-log-dot"></span> ${msg}`;
+                syncResults.appendChild(div);
+            });
+
+            Swal.fire({
+                title: 'Synchronization Complete',
+                text: 'Student face datasets have been processed successfully.',
+                icon: 'success',
+                confirmButtonColor: '#2c3e50',
+                customClass: {
+                    popup: 'custom-swal'
+                }
+            });
+            
+            updateFaceStats();
+        } else {
+            throw new Error(data.message || "Unknown error occurred");
+        }
+    } catch (err) {
+        console.error("Sync error:", err);
+        Swal.fire({
+            title: 'Synchronization Failed',
+            text: err.message || 'An unexpected error occurred',
+            icon: 'error',
+            confirmButtonColor: '#2c3e50',
+            customClass: {
+                popup: 'custom-swal'
+            }
+        });
+    } finally {
+        syncBtn.disabled = false;
+        syncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Start Synchronization';
+        syncStatus.classList.add('d-none');
+        
+        if (syncBadge) {
+            syncBadge.className = 'sync-badge ready';
+            syncBadge.innerHTML = '<i class="fas fa-circle me-1" style="font-size: 6px;"></i> Ready';
+        }
+=======
     if (data.status === "success") {
       syncResults.classList.remove("d-none");
       data.results.forEach((msg) => {
@@ -1227,6 +1302,7 @@ async function startDatasetSync() {
       updateFaceStats();
     } else {
       throw new Error(data.message || "Unknown error occurred");
+>>>>>>> aaa714e541d4e7f136586d9637c0f35b635f6192
     }
   } catch (err) {
     console.error("Sync error:", err);
@@ -1241,7 +1317,6 @@ async function startDatasetSync() {
     syncStatus.classList.add("d-none");
   }
 }
-
 async function updateFaceStats() {
   try {
     const response = await apiCall("/api/admin/face_stats");
