@@ -4,7 +4,7 @@ import json
 import numpy as np
 import base64
 import cv2
-from io import BytesIO
+from io import BytesIO   
 from PIL import Image
 from database import get_db_connection
 
