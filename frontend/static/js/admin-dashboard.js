@@ -9,6 +9,10 @@ const user = JSON.parse(localStorage.getItem("user"));
 const userId = localStorage.getItem("userId");
 const userRole = localStorage.getItem("userRole");
 
+// ========== DATATABLE INSTANCES ==========
+let studentsDataTable = null;
+let teachersDataTable = null;
+
 // Role check
 if (!user || !userId || userRole !== "Admin") {
   alert("Access Denied. Admin only.");
@@ -239,31 +243,78 @@ async function loadStats() {
 // ============================================
 
 async function loadStudents() {
+  const tbody = document.getElementById("studentsTableBody");
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    '<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+
   try {
     const response = await apiCall("/admin_students");
-    if (!response) return;
+    if (!response) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="text-center text-danger">Failed to connect</td></tr>';
+      return;
+    }
 
     const data = await response.json();
+    if (data.status !== "success") {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="text-center text-danger">Error loading students</td></tr>';
+      return;
+    }
 
-    if (data.status === "success") {
-      const tbody = document.getElementById("studentsTableBody");
-      if (!tbody) return;
+    // Destroy existing DataTable
+    if (studentsDataTable) {
+      studentsDataTable.destroy();
+      studentsDataTable = null;
+    }
 
-      tbody.innerHTML = "";
+    tbody.innerHTML = "";
 
+    if (!data.students || data.students.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="text-center text-muted">No students found</td></tr>';
+    } else {
       data.students.forEach((student) => {
         const row = tbody.insertRow();
         row.innerHTML = `
-                    <td>${student.registration_no || "-"}</td>
-                    <td>${student.full_name}</td>
-                    <td>${student.email}</td>
-                    <td>${student.dept_name || "-"}</td>
-                    <td><span class="badge bg-success">Active</span></td>
-                `;
+          <td>${student.registration_no || "-"}</td>
+          <td>${student.full_name}</td>
+          <td>${student.email}</td>
+          <td>${student.dept_name || "-"}</td>
+          <td><span class="badge bg-success">Active</span></td>
+        `;
       });
     }
+
+    // Initialize DataTable
+    studentsDataTable = new simpleDatatables.DataTable("#studentsTable", {
+      perPage: 10,
+      perPageSelect: [5, 10, 20, 50],
+      searchable: true,
+      sortable: true,
+      labels: {
+        placeholder: "Search students...",
+        perPage: "{select} entries per page",
+        noRows: "No students found",
+        info: "Showing {start} to {end} of {rows} entries",
+      },
+    });
+    // ✅ ADD THIS CODE - Force Black Header
+    setTimeout(() => {
+      document
+        .querySelectorAll("#studentsTable_wrapper .dataTable-table thead th")
+        .forEach((th) => {
+          th.style.backgroundColor = "#212529";
+          th.style.color = "#ffffff";
+          th.style.fontWeight = "600";
+        });
+    }, 50);
   } catch (err) {
     console.error("Error loading students:", err);
+    tbody.innerHTML =
+      '<tr><td colspan="5" class="text-center text-danger">Error loading students</td></tr>';
   }
 }
 
@@ -272,33 +323,80 @@ async function loadStudents() {
 // ============================================
 
 async function loadTeachers() {
+  const tbody = document.getElementById("teachersTableBody");
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    '<tr><td colspan="4" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+
   try {
     const response = await apiCall("/admin_teachers");
-    if (!response) return;
+    if (!response) {
+      tbody.innerHTML =
+        '<tr><td colspan="4" class="text-center text-danger">Failed to connect</td></tr>';
+      return;
+    }
 
     const data = await response.json();
+    if (data.status !== "success") {
+      tbody.innerHTML =
+        '<tr><td colspan="4" class="text-center text-danger">Error loading teachers</td></tr>';
+      return;
+    }
 
-    if (data.status === "success") {
-      const tbody = document.getElementById("teachersTableBody");
-      if (!tbody) return;
+    // Destroy existing DataTable
+    if (teachersDataTable) {
+      teachersDataTable.destroy();
+      teachersDataTable = null;
+    }
 
-      tbody.innerHTML = "";
+    tbody.innerHTML = "";
 
+    if (!data.teachers || data.teachers.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="4" class="text-center text-muted">No teachers found</td></tr>';
+    } else {
       data.teachers.forEach((teacher) => {
         const row = tbody.insertRow();
         row.innerHTML = `
-                    <td>${teacher.employee_id || "-"}</td>
-                    <td>${teacher.full_name}</td>
-                    <td>${teacher.email}</td>
-                    <td>${teacher.qualification || "-"}</td>
-                `;
+          <td>${teacher.employee_id || "-"}</td>
+          <td>${teacher.full_name}</td>
+          <td>${teacher.email}</td>
+          <td>${teacher.qualification || "-"}</td>
+        `;
       });
     }
+
+    // Initialize DataTable
+    teachersDataTable = new simpleDatatables.DataTable("#teachersTable", {
+      perPage: 10,
+      perPageSelect: [5, 10, 20, 50],
+      searchable: true,
+      sortable: true,
+      labels: {
+        placeholder: "Search teachers...",
+        perPage: "{select} entries per page",
+        noRows: "No teachers found",
+        info: "Showing {start} to {end} of {rows} entries",
+      },
+    });
+
+    setTimeout(() => {
+      document
+        .querySelectorAll("#teachersTable_wrapper .dataTable-table thead th")
+        .forEach((th) => {
+          th.style.backgroundColor = "#212529";
+          th.style.color = "#ffffff";
+          th.style.fontWeight = "600";
+        });
+    }, 50);
   } catch (err) {
     console.error("Error loading teachers:", err);
+    tbody.innerHTML =
+      '<tr><td colspan="4" class="text-center text-danger">Error loading teachers</td></tr>';
   }
 }
-
+m;
 // ============================================
 // SECTION NAVIGATION
 // ============================================
@@ -375,9 +473,7 @@ function goBackToSemesters() {
 }
 
 async function loadDepartmentsTable() {
-  const departmentsTableBody = document.getElementById(
-    "departmentsTableBody",
-  );
+  const departmentsTableBody = document.getElementById("departmentsTableBody");
   if (departmentsTableBody) {
     departmentsTableBody.innerHTML = `
       <tr>
@@ -454,9 +550,7 @@ async function loadSemestersTable(deptId) {
       selectedDepartmentLabelText || `Department ID: ${deptId}`;
   }
 
-  const semestersTableBody = document.getElementById(
-    "semestersTableBody",
-  );
+  const semestersTableBody = document.getElementById("semestersTableBody");
   const coursesTableBody = document.getElementById("coursesTableBody");
 
   if (semestersTableBody) {
@@ -573,9 +667,7 @@ async function loadCoursesTable(semId) {
 
     coursesTableBody.innerHTML = "";
     data.courses.forEach((course) => {
-      const courseTypeLabel = course.is_compulsory
-        ? "Compulsory"
-        : "Elective";
+      const courseTypeLabel = course.is_compulsory ? "Compulsory" : "Elective";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -1086,90 +1178,101 @@ async function loadAttendanceTrendChart() {
 // ============================================
 
 async function startDatasetSync() {
-    const syncBtn = document.getElementById('syncBtn');
-    const syncStatus = document.getElementById('syncStatus');
-    const syncResults = document.getElementById('syncResults');
+  const syncBtn = document.getElementById("syncBtn");
+  const syncStatus = document.getElementById("syncStatus");
+  const syncResults = document.getElementById("syncResults");
 
-    // Reset UI
-    syncBtn.disabled = true;
-    syncStatus.classList.remove('d-none');
-    syncResults.classList.add('d-none');
-    syncResults.innerHTML = '';
+  // Reset UI
+  syncBtn.disabled = true;
+  syncStatus.classList.remove("d-none");
+  syncResults.classList.add("d-none");
+  syncResults.innerHTML = "";
 
-    try {
-        const response = await apiCall("/api/admin/sync_faces", {
-            method: "POST"
-        });
+  try {
+    const response = await apiCall("/api/admin/sync_faces", {
+      method: "POST",
+    });
 
-        if (!response) throw new Error("No response from server");
-        const data = await response.json();
+    if (!response) throw new Error("No response from server");
+    const data = await response.json();
 
-        if (data.status === "success") {
-            syncResults.classList.remove('d-none');
-            data.results.forEach(msg => {
-                const div = document.createElement('div');
-                div.style.padding = '5px 10px';
-                div.style.marginBottom = '2px';
-                div.style.borderRadius = '4px';
-                div.style.backgroundColor = msg.includes('✅') ? '#e8f5e9' : (msg.includes('⚠️') ? '#fff3e0' : '#ffebee');
-                div.style.color = msg.includes('✅') ? '#2e7d32' : (msg.includes('⚠️') ? '#ef6c00' : '#c62828');
-                div.style.borderLeft = `4px solid ${msg.includes('✅') ? '#4caf50' : (msg.includes('⚠️') ? '#ff9800' : '#f44336')}`;
-                div.textContent = msg;
-                syncResults.appendChild(div);
-            });
+    if (data.status === "success") {
+      syncResults.classList.remove("d-none");
+      data.results.forEach((msg) => {
+        const div = document.createElement("div");
+        div.style.padding = "5px 10px";
+        div.style.marginBottom = "2px";
+        div.style.borderRadius = "4px";
+        div.style.backgroundColor = msg.includes("✅")
+          ? "#e8f5e9"
+          : msg.includes("⚠️")
+            ? "#fff3e0"
+            : "#ffebee";
+        div.style.color = msg.includes("✅")
+          ? "#2e7d32"
+          : msg.includes("⚠️")
+            ? "#ef6c00"
+            : "#c62828";
+        div.style.borderLeft = `4px solid ${msg.includes("✅") ? "#4caf50" : msg.includes("⚠️") ? "#ff9800" : "#f44336"}`;
+        div.textContent = msg;
+        syncResults.appendChild(div);
+      });
 
-            Swal.fire({
-                title: "Sync Finished!",
-                text: "Student dataset has been processed.",
-                icon: "success",
-                confirmButtonColor: "#27ae60"
-            });
-            updateFaceStats();
-        } else {
-            throw new Error(data.message || "Unknown error occurred");
-        }
-    } catch (err) {
-        console.error("Sync error:", err);
-        Swal.fire({
-            title: "Sync Failed",
-            text: err.message,
-            icon: "error",
-            confirmButtonColor: "#e74c3c"
-        });
-    } finally {
-        syncBtn.disabled = false;
-        syncStatus.classList.add('d-none');
+      Swal.fire({
+        title: "Sync Finished!",
+        text: "Student dataset has been processed.",
+        icon: "success",
+        confirmButtonColor: "#27ae60",
+      });
+      updateFaceStats();
+    } else {
+      throw new Error(data.message || "Unknown error occurred");
     }
+  } catch (err) {
+    console.error("Sync error:", err);
+    Swal.fire({
+      title: "Sync Failed",
+      text: err.message,
+      icon: "error",
+      confirmButtonColor: "#e74c3c",
+    });
+  } finally {
+    syncBtn.disabled = false;
+    syncStatus.classList.add("d-none");
+  }
 }
 
 async function updateFaceStats() {
-    try {
-        const response = await apiCall("/api/admin/face_stats");
-        if (!response) return;
-        const data = await response.json();
-        if (data.status === "success") {
-            document.getElementById('statStudentCount').textContent = data.student_count;
-            document.getElementById('statFaceCount').textContent = data.total_faces;
-        }
-    } catch (err) {
-        console.error("Error fetching face stats:", err);
+  try {
+    const response = await apiCall("/api/admin/face_stats");
+    if (!response) return;
+    const data = await response.json();
+    if (data.status === "success") {
+      document.getElementById("statStudentCount").textContent =
+        data.student_count;
+      document.getElementById("statFaceCount").textContent = data.total_faces;
     }
+  } catch (err) {
+    console.error("Error fetching face stats:", err);
+  }
 }
 
 // Update showSection to refresh stats when face-sync is clicked
 const originalShowSection = window.showSection;
-window.showSection = function(sectionId) {
-    if (sectionId === 'face-sync') {
-        updateFaceStats();
-    }
-    if (typeof originalShowSection === 'function') {
-        originalShowSection(sectionId);
-    } else {
-        // Fallback if original is not accessible
-        document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
-        const target = document.getElementById(sectionId);
-        if (target) target.classList.remove('hidden');
-    }
+window.showSection = function (sectionId) {
+  if (sectionId === "face-sync") {
+    updateFaceStats();
+  }
+  if (typeof originalShowSection === "function") {
+    originalShowSection(sectionId);
+  } else {
+    // Fallback if original is not accessible
+    document
+      .querySelectorAll(".content-section")
+      .forEach((s) => s.classList.add("hidden"));
+    const target = document.getElementById(sectionId);
+    if (target) target.classList.remove("hidden");
+  }
 };
 
 // ============================================
