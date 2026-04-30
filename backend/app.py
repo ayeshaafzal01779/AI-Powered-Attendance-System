@@ -1140,6 +1140,88 @@ def admin_add_user():
         }
     })
 
+@app.route('/admin_semesters', methods=['GET'])
+@role_required(['Admin'])
+def admin_semesters():
+    dept_id = request.args.get('dept_id')
+    if not dept_id:
+        return jsonify({"status": "error", "message": "dept_id required"}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                s.sem_id,
+                s.semester_number,
+                s.semester_name,
+                s.start_date,
+                s.end_date,
+                s.is_active
+            FROM semesters s
+            JOIN programs p ON s.program_id = p.program_id
+            WHERE p.dept_id = %s
+            ORDER BY s.semester_number ASC
+        """, (dept_id,))
+        
+        semesters = cursor.fetchall()
+        
+        for s in semesters:
+            if s.get('start_date'):
+                s['start_date'] = str(s['start_date'])
+            if s.get('end_date'):
+                s['end_date'] = str(s['end_date'])
+        
+        return jsonify({"status": "success", "semesters": semesters})
+        
+    except Exception as e:
+        print(f"ERROR in admin_semesters: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/admin_courses', methods=['GET'])
+@role_required(['Admin'])
+def admin_courses():
+    sem_id = request.args.get('sem_id')
+    if not sem_id:
+        return jsonify({"status": "error", "message": "sem_id required"}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                c.course_id,
+                c.course_code,
+                c.course_name,
+                c.credit_hours,
+                c.course_type,
+                cs.is_compulsory
+            FROM course_semester cs
+            JOIN courses c ON cs.course_id = c.course_id
+            WHERE cs.sem_id = %s
+            ORDER BY c.course_code ASC
+        """, (sem_id,))
+        
+        courses = cursor.fetchall()
+        return jsonify({"status": "success", "courses": courses})
+        
+    except Exception as e:
+        print(f"ERROR in admin_courses: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+        
 # ============================================
 # TEACHER APIs
 # ============================================
@@ -1900,47 +1982,59 @@ def get_my_attendance():
 @role_required(['Student'])
 def active_sessions_for_student():
     student_id = session.get('user_id')
-
+    
     conn = get_db_connection()
     if conn is None:
         return jsonify({"status": "error", "message": "DB connection failed"}), 500
-
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT
-            ats.session_id,
-            ats.section_id,
-            ats.mode,
-            c.course_code,
-            c.course_name,
-            sec.section_code,
-            sec.room_no,
-            t.full_name AS teacher_name,
-            CASE 
-                WHEN ar.record_id IS NOT NULL THEN 1 
-                ELSE 0 
-            END AS already_marked
-        FROM attendance_sessions ats
-        JOIN sections sec ON ats.section_id = sec.section_id
-        JOIN course_semester cs ON sec.cs_id = cs.cs_id
-        JOIN courses c ON cs.course_id = c.course_id
-        JOIN users t ON ats.teacher_id = t.user_id
-        JOIN student_enrollment se ON se.section_id = sec.section_id
-        LEFT JOIN attendance_records ar 
-            ON ar.session_id = ats.session_id 
-            AND ar.student_id = %s
-        WHERE ats.is_active = 1
-          AND se.student_id = %s
-    """, (student_id, student_id))
-
-    sessions = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    # Filter out already marked sessions
-    active = [s for s in sessions if not s['already_marked']]
-
-    return jsonify({"status": "success", "sessions": active})
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        today_date = date.today()
+        
+        cursor.execute("""
+            SELECT
+                ats.session_id,
+                ats.section_id,
+                ats.mode,
+                c.course_code,
+                c.course_name,
+                sec.section_code,
+                sec.room_no,
+                t.full_name AS teacher_name,
+                CASE 
+                    WHEN ar.record_id IS NOT NULL THEN 1 
+                    ELSE 0 
+                END AS already_marked
+            FROM attendance_sessions ats
+            JOIN sections sec ON ats.section_id = sec.section_id
+            JOIN course_semester cs ON sec.cs_id = cs.cs_id
+            JOIN courses c ON cs.course_id = c.course_id
+            JOIN users t ON ats.teacher_id = t.user_id
+            JOIN student_enrollment se ON se.section_id = sec.section_id
+            LEFT JOIN attendance_records ar 
+                ON ar.session_id = ats.session_id 
+                AND ar.student_id = %s
+            WHERE ats.is_active = 1
+              AND ats.end_time IS NULL
+              AND ats.start_time IS NOT NULL
+              AND se.student_id = %s
+              AND ats.session_date = %s
+        """, (student_id, student_id, today_date))
+        
+        sessions = cursor.fetchall()
+        active = [s for s in sessions if not s['already_marked']]
+        
+        for s in active:
+            s.pop('already_marked', None)
+        
+        return jsonify({"status": "success", "sessions": active})
+        
+    except Exception as e:
+        print(f"ERROR in active_sessions_for_student: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/my_attendance_history', methods=['GET'])
 @role_required(['Student'])
