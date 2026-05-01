@@ -17,7 +17,7 @@
     />
     <!-- SimpleDataTables CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@8/dist/style.css" />
-    <link rel="stylesheet" href="/static/css/admin-dashboard.css?v=20260424c" />
+    <link rel="stylesheet" href="/static/css/admin-dashboard.css?v=20260501a" />
   </head>
   <body>
     <div class="sidebar shadow">
@@ -131,11 +131,12 @@
                 <th>Email</th>
                 <th>Department</th>
                 <th>Status</th>
+                <th class="text-end" style="width: 72px">Actions</th>
               </tr>
             </thead>
             <tbody id="studentsTableBody">
               <tr>
-                <td colspan="5" class="text-center">Loading...</td>
+                <td colspan="6" class="text-center">Loading...</td>
               </tr>
             </tbody>
           </table>
@@ -152,11 +153,12 @@
                 <th>Teacher Name</th>
                 <th>Email</th>
                 <th>Qualification</th>
+                <th class="text-end" style="width: 72px">Actions</th>
               </tr>
             </thead>
             <tbody id="teachersTableBody">
               <tr>
-                <td colspan="4" class="text-center">Loading...</td>
+                <td colspan="5" class="text-center">Loading...</td>
               </tr>
             </tbody>
           </table>
@@ -570,6 +572,72 @@
       </div>
     </div>
 
+    <!-- Edit user (Admin) -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content border-0">
+          <div class="modal-header" style="background-color: #2890b9; color: white">
+            <h5 class="modal-title">Edit user</h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body p-4">
+            <form id="editUserForm">
+              <input type="hidden" id="editUserId" />
+              <input type="hidden" id="editUserRole" />
+              <div class="mb-3">
+                <label class="form-label fw-bold">Full name</label>
+                <input type="text" class="form-control" id="editFullName" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Email</label>
+                <input type="email" class="form-control" id="editEmail" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Phone</label>
+                <input type="text" class="form-control" id="editPhone" placeholder="Optional" />
+              </div>
+              <div class="mb-3" id="editStudentFields">
+                <label class="form-label fw-bold">Roll No</label>
+                <input type="text" class="form-control" id="editRegistrationNo" />
+                <label class="form-label fw-bold mt-2">Department</label>
+                <select class="form-select" id="editDepartment"></select>
+                <label class="form-label fw-bold mt-2">Semester</label>
+                <select class="form-select" id="editSemester">
+                  <option value="">Select semester</option>
+                  <option value="2">Semester 2</option>
+                  <option value="4">Semester 4</option>
+                  <option value="6">Semester 6</option>
+                  <option value="8">Semester 8</option>
+                </select>
+              </div>
+              <div class="mb-3 d-none" id="editTeacherFields">
+                <label class="form-label fw-bold">Employee ID</label>
+                <input type="text" class="form-control" id="editEmployeeId" />
+                <label class="form-label fw-bold mt-2">Qualification</label>
+                <input type="text" class="form-control" id="editQualification" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">New password (optional)</label>
+                <input
+                  type="password"
+                  class="form-control"
+                  id="editPassword"
+                  placeholder="Leave blank to keep current"
+                />
+              </div>
+              <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                Save changes
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ============================================ -->
     <!-- AI CHATBOT                                  -->
     <!-- ============================================ -->
@@ -619,7 +687,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- SimpleDataTables JS -->
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@8"></script>
-    <script src="/static/js/admin-dashboard.js?v=20260424d"></script>
+    <script src="/static/js/admin-dashboard.js?v=20260501a"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
 

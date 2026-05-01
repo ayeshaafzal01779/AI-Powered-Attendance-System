@@ -673,9 +673,11 @@ def admin_students():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-        SELECT u.user_id, u.full_name, u.email, u.registration_no, u.phone, d.dept_name
+        SELECT u.user_id, u.full_name, u.email, u.registration_no, u.phone, u.dept_id,
+               d.dept_name, u.current_sem_id, sem.semester_number
         FROM users u
         LEFT JOIN departments d ON u.dept_id = d.dept_id
+        LEFT JOIN semesters sem ON sem.sem_id = u.current_sem_id
         WHERE u.role = 'Student'
     """)
     students = cursor.fetchall()
@@ -696,6 +698,296 @@ def admin_teachers():
     cursor.close()
     conn.close()
     return jsonify({'status': 'success', 'teachers': teachers})
+
+@app.route('/admin_user/<int:user_id>', methods=['GET'])
+@role_required(['Admin'])
+def admin_get_user(user_id):
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT u.user_id, u.email, u.full_name, u.phone, u.role, u.registration_no,
+               u.employee_id, u.qualification, u.dept_id, u.program_id, u.current_sem_id,
+               d.dept_name, sem.semester_number
+        FROM users u
+        LEFT JOIN departments d ON u.dept_id = d.dept_id
+        LEFT JOIN semesters sem ON sem.sem_id = u.current_sem_id
+        WHERE u.user_id = %s
+    """, (user_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"status": "error", "message": "User not found"}), 404
+    if row.get("role") not in ("Student", "Teacher"):
+        return jsonify({"status": "error", "message": "Cannot view this user"}), 403
+
+    return jsonify({"status": "success", "user": row})
+
+@app.route('/admin_user/<int:user_id>', methods=['PUT'])
+@role_required(['Admin'])
+def admin_update_user(user_id):
+    data = request.get_json() or {}
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT user_id, email, role FROM users WHERE user_id = %s LIMIT 1",
+        (user_id,),
+    )
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "User not found"}), 404
+    if existing.get("role") not in ("Student", "Teacher"):
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Cannot edit this user"}), 403
+
+    full_name = (data.get("full_name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    phone = (data.get("phone") or "").strip() or None
+    password = data.get("password") or ""
+
+    if not full_name or not email:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Full name and email are required"}), 400
+
+    if email != (existing.get("email") or "").lower():
+        cursor.execute("SELECT user_id FROM users WHERE email = %s LIMIT 1", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Email already in use"}), 400
+
+    role = existing["role"]
+    try:
+        if role == "Student":
+            registration_no = (data.get("registration_no") or "").strip()
+            department_id = data.get("department_id")
+            semester_number = data.get("semester_number")
+
+            if not registration_no:
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Roll number is required"}), 400
+            if department_id in [None, ""]:
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Department is required"}), 400
+            try:
+                department_id = int(department_id)
+            except (TypeError, ValueError):
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid department"}), 400
+
+            semester_raw = (semester_number or "").strip()
+            if not semester_raw:
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Semester is required"}), 400
+            try:
+                semester_int = int(semester_raw)
+            except (TypeError, ValueError):
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid semester"}), 400
+
+            cursor.execute(
+                "SELECT program_id FROM programs WHERE dept_id = %s LIMIT 1",
+                (department_id,),
+            )
+            prog = cursor.fetchone()
+            if not prog:
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Program not found for department"}), 400
+            program_id = prog["program_id"]
+
+            cursor.execute(
+                """
+                SELECT s.sem_id
+                FROM semesters s
+                JOIN programs p ON p.program_id = s.program_id
+                WHERE p.dept_id = %s AND s.semester_number = %s
+                LIMIT 1
+                """,
+                (department_id, semester_int),
+            )
+            sem_row = cursor.fetchone()
+            if not sem_row:
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Semester not found for department"}), 400
+            current_sem_id = sem_row["sem_id"]
+
+            if password:
+                hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET full_name = %s, email = %s, phone = %s, registration_no = %s,
+                        dept_id = %s, program_id = %s, current_sem_id = %s, password = %s
+                    WHERE user_id = %s AND role = 'Student'
+                    """,
+                    (
+                        full_name,
+                        email,
+                        phone,
+                        registration_no,
+                        department_id,
+                        program_id,
+                        current_sem_id,
+                        hashed,
+                        user_id,
+                    ),
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET full_name = %s, email = %s, phone = %s, registration_no = %s,
+                        dept_id = %s, program_id = %s, current_sem_id = %s
+                    WHERE user_id = %s AND role = 'Student'
+                    """,
+                    (
+                        full_name,
+                        email,
+                        phone,
+                        registration_no,
+                        department_id,
+                        program_id,
+                        current_sem_id,
+                        user_id,
+                    ),
+                )
+        else:
+            employee_id = (data.get("employee_id") or "").strip()
+            qualification = (data.get("qualification") or "").strip() or None
+            if not employee_id:
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "error", "message": "Employee ID is required"}), 400
+
+            if password:
+                hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET full_name = %s, email = %s, phone = %s, employee_id = %s,
+                        qualification = %s, password = %s
+                    WHERE user_id = %s AND role = 'Teacher'
+                    """,
+                    (full_name, email, phone, employee_id, qualification, hashed, user_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET full_name = %s, email = %s, phone = %s, employee_id = %s, qualification = %s
+                    WHERE user_id = %s AND role = 'Teacher'
+                    """,
+                    (full_name, email, phone, employee_id, qualification, user_id),
+                )
+
+        if cursor.rowcount == 0:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Update failed"}), 400
+
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        if "Duplicate entry" in str(exc):
+            return jsonify({"status": "error", "message": "Duplicate value (email / roll / employee id)"}), 400
+        return jsonify({"status": "error", "message": "Failed to update user"}), 500
+
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "message": "User updated"})
+
+@app.route('/admin_user/<int:user_id>', methods=['DELETE'])
+@role_required(['Admin'])
+def admin_delete_user(user_id):
+    if session.get("user_id") == user_id:
+        return jsonify({"status": "error", "message": "You cannot delete your own account"}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT user_id, role FROM users WHERE user_id = %s", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "User not found"}), 404
+    if row.get("role") not in ("Student", "Teacher"):
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": "Cannot delete this user"}), 403
+
+    role = row["role"]
+    try:
+        if role == "Student":
+            cursor.execute("DELETE FROM attendance_records WHERE student_id = %s", (user_id,))
+            cursor.execute("DELETE FROM student_enrollment WHERE student_id = %s", (user_id,))
+            cursor.execute("DELETE FROM fines WHERE student_id = %s", (user_id,))
+            cursor.execute("DELETE FROM facial_data WHERE student_id = %s", (user_id,))
+            cursor.execute("DELETE FROM users WHERE user_id = %s AND role = 'Student'", (user_id,))
+        else:
+            cursor.execute(
+                "SELECT section_id FROM sections WHERE teacher_id = %s",
+                (user_id,),
+            )
+            section_rows = cursor.fetchall() or []
+            section_ids = [r["section_id"] for r in section_rows]
+            if section_ids:
+                placeholders = ",".join(["%s"] * len(section_ids))
+                cursor.execute(
+                    f"DELETE FROM attendance_records WHERE section_id IN ({placeholders})",
+                    tuple(section_ids),
+                )
+                cursor.execute(
+                    f"DELETE FROM attendance_sessions WHERE section_id IN ({placeholders})",
+                    tuple(section_ids),
+                )
+                cursor.execute(
+                    f"DELETE FROM student_enrollment WHERE section_id IN ({placeholders})",
+                    tuple(section_ids),
+                )
+                cursor.execute(
+                    f"DELETE FROM sections WHERE section_id IN ({placeholders})",
+                    tuple(section_ids),
+                )
+            cursor.execute(
+                "DELETE FROM attendance_sessions WHERE teacher_id = %s",
+                (user_id,),
+            )
+            cursor.execute("DELETE FROM users WHERE user_id = %s AND role = 'Teacher'", (user_id,))
+
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success", "message": "User deleted"})
 
 @app.route('/admin_departments', methods=['GET'])
 @role_required(['Admin'])

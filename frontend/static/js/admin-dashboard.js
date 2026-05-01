@@ -52,6 +52,258 @@ async function apiCall(url, options = {}) {
   }
 }
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function rowActionsCell(userId, roleLabel) {
+  const safeRole = roleLabel === "Teacher" ? "Teacher" : "Student";
+  return `
+    <td class="text-end">
+      <div class="row-actions">
+        <button type="button" class="row-actions-trigger" aria-label="Actions">&#8942;</button>
+        <div class="row-actions-menu">
+          <button type="button" onclick="adminViewUserProfile(${userId}, '${safeRole}')">View profile</button>
+          <button type="button" onclick="adminOpenEditUser(${userId}, '${safeRole}')">Edit</button>
+          <button type="button" class="text-danger" onclick="adminDeleteUser(${userId}, '${safeRole}')">Delete</button>
+        </div>
+      </div>
+    </td>
+  `;
+}
+
+async function adminViewUserProfile(userId, roleLabel) {
+  const response = await apiCall(`/admin_user/${userId}`);
+  if (!response) return;
+  const data = await response.json();
+  if (data.status !== "success" || !data.user) {
+    Swal.fire({
+      title: "Error",
+      text: data.message || "Could not load profile",
+      icon: "error",
+    });
+    return;
+  }
+  const u = data.user;
+  let detail = "";
+  if (roleLabel === "Student") {
+    detail = `
+      <div class="text-start small">
+        <p class="mb-1"><strong>Roll No:</strong> ${escapeHtml(u.registration_no || "-")}</p>
+        <p class="mb-1"><strong>Email:</strong> ${escapeHtml(u.email || "-")}</p>
+        <p class="mb-1"><strong>Phone:</strong> ${escapeHtml(u.phone || "-")}</p>
+        <p class="mb-1"><strong>Department:</strong> ${escapeHtml(u.dept_name || "-")}</p>
+        <p class="mb-0"><strong>Semester:</strong> ${escapeHtml(u.semester_number != null ? u.semester_number : "-")}</p>
+      </div>
+    `;
+  } else {
+    detail = `
+      <div class="text-start small">
+        <p class="mb-1"><strong>Employee ID:</strong> ${escapeHtml(u.employee_id || "-")}</p>
+        <p class="mb-1"><strong>Email:</strong> ${escapeHtml(u.email || "-")}</p>
+        <p class="mb-1"><strong>Phone:</strong> ${escapeHtml(u.phone || "-")}</p>
+        <p class="mb-0"><strong>Qualification:</strong> ${escapeHtml(u.qualification || "-")}</p>
+      </div>
+    `;
+  }
+  Swal.fire({
+    title: escapeHtml(u.full_name || "Profile"),
+    html: detail,
+    icon: "info",
+    confirmButtonColor: "#2890b9",
+  });
+}
+
+async function populateEditDepartments(selectedDeptId) {
+  const sel = document.getElementById("editDepartment");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select department</option>';
+  const response = await apiCall("/admin_departments");
+  if (!response) return;
+  const data = await response.json();
+  if (data.status !== "success" || !Array.isArray(data.departments)) return;
+  data.departments.forEach((dept) => {
+    const opt = document.createElement("option");
+    opt.value = String(dept.dept_id);
+    opt.textContent = `${dept.dept_name} (${dept.dept_code})`;
+    sel.appendChild(opt);
+  });
+  if (selectedDeptId != null && selectedDeptId !== "") {
+    sel.value = String(selectedDeptId);
+  }
+}
+
+function openEditUserModal() {
+  const modalEl = document.getElementById("editUserModal");
+  if (!modalEl || typeof bootstrap === "undefined") return;
+  bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function closeEditUserModal() {
+  const modalEl = document.getElementById("editUserModal");
+  if (!modalEl || typeof bootstrap === "undefined") return;
+  const inst = bootstrap.Modal.getInstance(modalEl);
+  if (inst) inst.hide();
+}
+
+async function adminOpenEditUser(userId, roleLabel) {
+  const response = await apiCall(`/admin_user/${userId}`);
+  if (!response) return;
+  const data = await response.json();
+  if (data.status !== "success" || !data.user) {
+    Swal.fire({
+      title: "Error",
+      text: data.message || "Could not load user",
+      icon: "error",
+    });
+    return;
+  }
+  const u = data.user;
+  document.getElementById("editUserId").value = String(u.user_id);
+  document.getElementById("editUserRole").value = roleLabel;
+  document.getElementById("editFullName").value = u.full_name || "";
+  document.getElementById("editEmail").value = u.email || "";
+  document.getElementById("editPhone").value = u.phone || "";
+  document.getElementById("editPassword").value = "";
+
+  const studentFields = document.getElementById("editStudentFields");
+  const teacherFields = document.getElementById("editTeacherFields");
+  if (roleLabel === "Student") {
+    if (studentFields) studentFields.classList.remove("d-none");
+    if (teacherFields) teacherFields.classList.add("d-none");
+    document.getElementById("editRegistrationNo").value =
+      u.registration_no || "";
+    await populateEditDepartments(u.dept_id);
+    const semEl = document.getElementById("editSemester");
+    if (semEl) {
+      semEl.value =
+        u.semester_number != null && u.semester_number !== ""
+          ? String(u.semester_number)
+          : "";
+    }
+  } else {
+    if (studentFields) studentFields.classList.add("d-none");
+    if (teacherFields) teacherFields.classList.remove("d-none");
+    document.getElementById("editEmployeeId").value = u.employee_id || "";
+    document.getElementById("editQualification").value = u.qualification || "";
+  }
+  openEditUserModal();
+}
+
+async function adminDeleteUser(userId, roleLabel) {
+  const result = await Swal.fire({
+    title: "Delete user?",
+    text: "This will remove the user and related records. This cannot be undone.",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#e74c3c",
+    cancelButtonColor: "#95a5a6",
+    confirmButtonText: "Yes, delete",
+  });
+  if (!result.isConfirmed) return;
+
+  const response = await apiCall(`/admin_user/${userId}`, { method: "DELETE" });
+  if (!response) return;
+  const data = await response.json();
+  if (!response.ok || data.status !== "success") {
+    Swal.fire({
+      title: "Error",
+      text: data.message || "Delete failed",
+      icon: "error",
+    });
+    return;
+  }
+  Swal.fire({
+    title: "Deleted",
+    icon: "success",
+    confirmButtonColor: "#27ae60",
+    timer: 1400,
+    showConfirmButton: false,
+  });
+  if (roleLabel === "Student") loadStudents();
+  else loadTeachers();
+  loadStats();
+}
+
+async function submitEditUserForm(event) {
+  event.preventDefault();
+  const id = document.getElementById("editUserId")?.value;
+  const roleLabel = document.getElementById("editUserRole")?.value;
+  if (!id || !roleLabel) return;
+
+  const full_name = document.getElementById("editFullName")?.value.trim();
+  const email = document.getElementById("editEmail")?.value.trim();
+  const phone = document.getElementById("editPhone")?.value.trim();
+  const password = document.getElementById("editPassword")?.value || "";
+
+  const payload = { full_name, email, phone: phone || null };
+  if (password) payload.password = password;
+
+  if (roleLabel === "Student") {
+    payload.registration_no = document
+      .getElementById("editRegistrationNo")
+      ?.value.trim();
+    payload.department_id = document.getElementById("editDepartment")?.value;
+    payload.semester_number = document.getElementById("editSemester")?.value;
+  } else {
+    payload.employee_id = document
+      .getElementById("editEmployeeId")
+      ?.value.trim();
+    payload.qualification = document
+      .getElementById("editQualification")
+      ?.value.trim();
+  }
+
+  const btn = document.querySelector("#editUserForm button[type='submit']");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+  }
+
+  try {
+    const response = await apiCall(`/admin_user/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    if (!response) return;
+    const data = await response.json();
+    if (!response.ok || data.status !== "success") {
+      Swal.fire({
+        title: "Error",
+        text: data.message || "Update failed",
+        icon: "error",
+      });
+      return;
+    }
+    closeEditUserModal();
+    Swal.fire({
+      title: "Saved",
+      icon: "success",
+      confirmButtonColor: "#27ae60",
+      timer: 1200,
+      showConfirmButton: false,
+    });
+    if (roleLabel === "Student") loadStudents();
+    else loadTeachers();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Save changes";
+    }
+  }
+}
+
+function initEditUserForm() {
+  const form = document.getElementById("editUserForm");
+  if (form) form.addEventListener("submit", submitEditUserForm);
+}
+
 // ============================================
 // LOW ATTENDANCE & FINES
 // ============================================
@@ -247,20 +499,20 @@ async function loadStudents() {
   if (!tbody) return;
 
   tbody.innerHTML =
-    '<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
 
   try {
     const response = await apiCall("/admin_students");
     if (!response) {
       tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-danger">Failed to connect</td></tr>';
+        '<tr><td colspan="6" class="text-center text-danger">Failed to connect</td></tr>';
       return;
     }
 
     const data = await response.json();
     if (data.status !== "success") {
       tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-danger">Error loading students</td></tr>';
+        '<tr><td colspan="6" class="text-center text-danger">Error loading students</td></tr>';
       return;
     }
 
@@ -274,7 +526,7 @@ async function loadStudents() {
 
     if (!data.students || data.students.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-muted">No students found</td></tr>';
+        '<tr><td colspan="6" class="text-center text-muted">No students found</td></tr>';
     } else {
       data.students.forEach((student) => {
         const row = tbody.insertRow();
@@ -284,6 +536,7 @@ async function loadStudents() {
           <td>${student.email}</td>
           <td>${student.dept_name || "-"}</td>
           <td><span class="badge bg-success">Active</span></td>
+          ${rowActionsCell(student.user_id, "Student")}
         `;
       });
     }
@@ -314,7 +567,7 @@ async function loadStudents() {
   } catch (err) {
     console.error("Error loading students:", err);
     tbody.innerHTML =
-      '<tr><td colspan="5" class="text-center text-danger">Error loading students</td></tr>';
+      '<tr><td colspan="6" class="text-center text-danger">Error loading students</td></tr>';
   }
 }
 
@@ -327,20 +580,20 @@ async function loadTeachers() {
   if (!tbody) return;
 
   tbody.innerHTML =
-    '<tr><td colspan="4" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    '<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
 
   try {
     const response = await apiCall("/admin_teachers");
     if (!response) {
       tbody.innerHTML =
-        '<tr><td colspan="4" class="text-center text-danger">Failed to connect</td></tr>';
+        '<tr><td colspan="5" class="text-center text-danger">Failed to connect</td></tr>';
       return;
     }
 
     const data = await response.json();
     if (data.status !== "success") {
       tbody.innerHTML =
-        '<tr><td colspan="4" class="text-center text-danger">Error loading teachers</td></tr>';
+        '<tr><td colspan="5" class="text-center text-danger">Error loading teachers</td></tr>';
       return;
     }
 
@@ -354,7 +607,7 @@ async function loadTeachers() {
 
     if (!data.teachers || data.teachers.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="4" class="text-center text-muted">No teachers found</td></tr>';
+        '<tr><td colspan="5" class="text-center text-muted">No teachers found</td></tr>';
     } else {
       data.teachers.forEach((teacher) => {
         const row = tbody.insertRow();
@@ -363,6 +616,7 @@ async function loadTeachers() {
           <td>${teacher.full_name}</td>
           <td>${teacher.email}</td>
           <td>${teacher.qualification || "-"}</td>
+          ${rowActionsCell(teacher.user_id, "Teacher")}
         `;
       });
     }
@@ -393,7 +647,7 @@ async function loadTeachers() {
   } catch (err) {
     console.error("Error loading teachers:", err);
     tbody.innerHTML =
-      '<tr><td colspan="4" class="text-center text-danger">Error loading teachers</td></tr>';
+      '<tr><td colspan="5" class="text-center text-danger">Error loading teachers</td></tr>';
   }
 }
 
@@ -1317,4 +1571,5 @@ window.showSection = function (sectionId) {
 loadStats();
 loadAttendanceTrendChart();
 initAddUserForm();
+initEditUserForm();
 ensureReportFormatOptions();
