@@ -35,6 +35,7 @@ redis==7.0.1
 reportlab==4.4.1
 simple-websocket==1.1.0
 six==1.17.0
+stripe
 waitress==3.0.2
 Werkzeug==3.1.5
 wsproto==1.2.0

@@ -24,6 +24,7 @@
       window.FaceLandmarker = FaceLandmarker;
       window.FilesetResolver = FilesetResolver;
     </script>
+    <script src="https://js.stripe.com/v3/"></script>
   </head>
   <body>
     <div class="header">
@@ -323,6 +324,142 @@
       </div>
     </div>
 
+    <!-- Receipt Modal -->
+    <div
+      id="receiptModal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        overflow-y: auto;
+      "
+    >
+      <div
+        style="
+          min-height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        "
+      >
+        <div
+          style="
+            background: white;
+            border-radius: 10px;
+            width: 450px;
+            max-width: 95%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+          "
+        >
+          <!-- Receipt Header -->
+          <div
+            style="
+              background: #27ae60;
+              padding: 20px;
+              border-radius: 10px 10px 0 0;
+              text-align: center;
+            "
+          >
+            <h2 style="color: white; margin: 0">🧾 Payment Receipt</h2>
+            <p style="color: #e0ffe0; margin: 5px 0 0 0">
+              AI Attendance System
+            </p>
+          </div>
+
+          <!-- Receipt Body (Scrollable) -->
+          <div
+            id="receiptContent"
+            style="
+              padding: 20px;
+              font-family: &quot;Courier New&quot;, monospace;
+              overflow-y: auto;
+              flex: 1;
+            "
+          >
+            <!-- Dynamic content yahan JS se inject hoga -->
+          </div>
+
+          <!-- Buttons (Fixed at bottom) -->
+          <div
+            style="
+              padding: 15px 20px;
+              display: flex;
+              gap: 10px;
+              border-top: 2px solid #eee;
+              flex-wrap: wrap;
+              justify-content: center;
+            "
+          >
+            <button
+              onclick="printReceipt()"
+              style="
+                background: #27ae60;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              "
+            >
+              🖨️ Print
+            </button>
+            <button
+              onclick="downloadReceipt()"
+              style="
+                background: #3498db;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              "
+            >
+              📥 PDF
+            </button>
+            <button
+              onclick="closeReceiptAndReload()"
+              style="
+                background: #f39c12;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              "
+            >
+              ✅ Done
+            </button>
+            <button
+              onclick="closeReceiptAndReload()"
+              style="
+                background: #e74c3c;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              "
+            >
+              ✕ Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ============================================ -->
     <!-- AI CHATBOT                                  -->
     <!-- ============================================ -->
@@ -365,6 +502,7 @@
 
     <script src="/static/js/chatbot.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="/static/js/student-dashboard.js"></script>
   </body>
 </html>
