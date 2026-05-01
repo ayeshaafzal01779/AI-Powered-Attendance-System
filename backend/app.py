@@ -1982,15 +1982,15 @@ def get_my_attendance():
 @role_required(['Student'])
 def active_sessions_for_student():
     student_id = session.get('user_id')
-    
+
     conn = get_db_connection()
     if conn is None:
         return jsonify({"status": "error", "message": "DB connection failed"}), 500
-    
+
     try:
         cursor = conn.cursor(dictionary=True)
         today_date = date.today()
-        
+
         cursor.execute("""
             SELECT
                 ats.session_id,
@@ -2015,20 +2015,18 @@ def active_sessions_for_student():
                 ON ar.session_id = ats.session_id 
                 AND ar.student_id = %s
             WHERE ats.is_active = 1
-              AND ats.end_time IS NULL
-              AND ats.start_time IS NOT NULL
               AND se.student_id = %s
               AND ats.session_date = %s
         """, (student_id, student_id, today_date))
-        
+
         sessions = cursor.fetchall()
         active = [s for s in sessions if not s['already_marked']]
-        
+
         for s in active:
             s.pop('already_marked', None)
-        
+
         return jsonify({"status": "success", "sessions": active})
-        
+
     except Exception as e:
         print(f"ERROR in active_sessions_for_student: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
