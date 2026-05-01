@@ -105,6 +105,16 @@ body {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
+/* Force black headers for Students/Teachers DataTables */
+#studentsTable thead th,
+#teachersTable thead th,
+#studentsTable_wrapper .dataTable-table thead th,
+#teachersTable_wrapper .dataTable-table thead th {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
 /* Add User Button */
 .add-user-btn {
   background-color: var(--btn-color);
@@ -143,6 +153,71 @@ body {
 
 #addUserModal button[type="submit"]:hover {
   background-color: var(--btn-hover-color);
+}
+
+/* Row actions (⋯ hover menu in admin tables) */
+.row-actions {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.row-actions-trigger {
+  background: transparent;
+  border: none;
+  color: #495057;
+  font-size: 1.35rem;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.row-actions-trigger:hover,
+.row-actions:hover .row-actions-trigger {
+  background: #e9ecef;
+  color: #212529;
+}
+
+.row-actions-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  min-width: 168px;
+  z-index: 1080;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  padding: 0.35rem 0;
+  text-align: left;
+}
+
+.row-actions:hover .row-actions-menu {
+  display: block;
+}
+
+.row-actions-menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+  color: #212529;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-actions-menu button:hover {
+  background: #f1f3f5;
+}
+
+.row-actions-menu button.text-danger:hover {
+  background: #fde8e8;
 }
 
 /* ============================================
