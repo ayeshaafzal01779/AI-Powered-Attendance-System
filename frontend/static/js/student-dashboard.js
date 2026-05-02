@@ -24,6 +24,10 @@ let activeSessionPollingInterval = null;
 let currentLiveSessions = [];
 let activeScanSessionId = null;
 
+// ✅ NEW: Track sessions jisme student ne attendance mark kar li hai
+//    Yeh set page reload tak yaad rakhega
+const markedSessionIds = new Set();
+
 const pkTimeFmt = new Intl.DateTimeFormat("en-PK", {
   timeZone: "Asia/Karachi",
   hour: "2-digit",
@@ -46,29 +50,30 @@ document.getElementById("userName").textContent = user.name;
 // SHOW MESSAGE - USING SWEETALERT2 TOAST
 // ============================================
 
-function showMessage(text, type) {
-  const Toast = Swal.mixin({
-    toast: true,
-    position: "top-end",
-    showConfirmButton: false,
-    timer: 3500,
-    timerProgressBar: true,
-    background: type === "success" ? "#0f172a" : "#ffffff",
-    color: type === "success" ? "#ffffff" : "#1e293b",
-    iconColor: type === "success" ? "#10b981" : "#ef4444",
-    didOpen: (toast) => {
-      toast.addEventListener("mouseenter", Swal.stopTimer);
-      toast.addEventListener("mouseleave", Swal.resumeTimer);
-      toast.style.borderRadius = "12px";
-      toast.style.boxShadow = "0 10px 20px rgba(0,0,0,0.15)";
-      toast.style.borderLeft = `5px solid ${type === "success" ? "#10b981" : "#ef4444"}`;
-    },
-  });
+function showMessage(text, type = 'info') {
+    const iconColor = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6');
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+        background: '#ffffff',
+        color: '#1e293b',
+        iconColor: iconColor,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+            toast.style.borderLeft = `6px solid ${iconColor}`;
+        }
+    });
 
-  Toast.fire({
-    icon: type === "success" ? "success" : "error",
-    title: text,
-  });
+    Toast.fire({
+        icon: type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info'),
+        title: `<div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">${type.charAt(0).toUpperCase() + type.slice(1)}</div><div style="font-weight: 400; font-size: 13px; color: #64748b;">${text}</div>`
+    });
 }
 
 // ============================================
@@ -110,6 +115,8 @@ async function apiCall(url, options = {}) {
 
 // ============================================
 // LIVE SESSION POLLING
+// ✅ CHANGE: 10000ms → 3000ms (3 seconds)
+// ✅ CHANGE: already_marked sessions filter out ho jaayenge
 // ============================================
 async function pollActiveSessions() {
   try {
@@ -117,7 +124,7 @@ async function pollActiveSessions() {
       `${API_BASE_URL}/active_sessions_for_student`,
       {
         credentials: "include",
-      },
+      }
     );
 
     if (!response || response.status === 401 || response.status === 403) {
@@ -127,7 +134,13 @@ async function pollActiveSessions() {
     const data = await response.json();
 
     if (data.status === "success") {
-      renderLiveSessionBanner(data.sessions);
+      // ✅ Sab sessions bhejo render ko — already_marked wale "confirmed" UI dikhayenge
+      // Sirf stopped sessions filter honge (is_active=0 backend query mein already hai)
+      const sessions = (data.sessions || []).map((s) => ({
+        ...s,
+        already_marked: s.already_marked === true || markedSessionIds.has(s.session_id),
+      }));
+      renderLiveSessionBanner(sessions);
     }
   } catch (err) {
     console.error("Polling error:", err);
@@ -135,10 +148,11 @@ async function pollActiveSessions() {
 }
 
 function startPolling() {
-  console.log("Live session polling started");
+  console.log("Live session polling started (3s interval)");
   pollActiveSessions();
   if (activeSessionPollingInterval) clearInterval(activeSessionPollingInterval);
-  activeSessionPollingInterval = setInterval(pollActiveSessions, 10000);
+  // ✅ CHANGE: 10000 → 3000 (3 seconds)
+  activeSessionPollingInterval = setInterval(pollActiveSessions, 3000);
 }
 
 // ============================================
@@ -147,11 +161,9 @@ function startPolling() {
 
 function renderLiveSessionBanner(sessions) {
   const bannerContainer = document.getElementById("liveSessionBanner");
-  if (!bannerContainer) {
-    return;
-  }
+  if (!bannerContainer) return;
 
-  // Filter valid sessions only
+  // Valid sessions — is_active = 1 wale (already_marked bhi include)
   const validSessions = (sessions || []).filter((s) => {
     return (
       s &&
@@ -172,12 +184,13 @@ function renderLiveSessionBanner(sessions) {
 
   bannerContainer.classList.remove("hidden");
 
+  // Snapshot mein already_marked bhi include karo taake UI update ho
   const newSnapshot = validSessions
-    .map((s) => `${s.session_id}:${s.mode}`)
+    .map((s) => `${s.session_id}:${s.mode}:${s.already_marked}`)
     .sort()
     .join(",");
   const oldSnapshot = (currentLiveSessions || [])
-    .map((s) => `${s.session_id}:${s.mode}`)
+    .map((s) => `${s.session_id}:${s.mode}:${s.already_marked}`)
     .sort()
     .join(",");
 
@@ -189,67 +202,94 @@ function renderLiveSessionBanner(sessions) {
 
   bannerContainer.innerHTML = validSessions
     .map((s) => {
+      const isMarked = s.already_marked === true || markedSessionIds.has(s.session_id);
       const mode = (s.mode || "Pending").toLowerCase();
-      let buttonsHtml = "";
 
+      // ✅ Agar already marked hai — alag "confirmed" UI dikhaو
+      if (isMarked) {
+        return `
+          <div class="live-session-card live-session-card--marked" id="live-card-${s.session_id}">
+            <div class="live-session-header live-session-header--marked">
+              <span class="live-badge">
+                <i class="fas fa-check-circle" style="color:#fff; margin-right:6px;"></i> SESSION IS LIVE
+              </span>
+              <span class="live-session-mode">${s.mode || "PENDING"} MODE</span>
+            </div>
+            <div class="live-session-body">
+              <h2 class="live-subject-name">${escapeHtml(s.course_name)}</h2>
+              <div class="live-info-row">
+                <span>Teacher: <strong>${escapeHtml(s.teacher_name)}</strong></span>
+                <span class="info-separator">|</span>
+                <span>Room: <strong>${s.room_no || "N/A"}</strong></span>
+                <span class="info-separator">|</span>
+                <span>Section: <strong>${s.section_code}</strong></span>
+              </div>
+              <div class="already-marked-msg">
+                <i class="fas fa-check-circle"></i>
+                <div>
+                  <strong>Attendance Marked Successfully!</strong>
+                  <p>Session is still ongoing. This will disappear when teacher ends the session.</p>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      // Normal — attendance abhi tak nahi mark ki
+      let buttonsHtml = "";
       if (mode === "pending") {
         buttonsHtml = `<div class="waiting-mode-msg">Waiting for teacher to start attendance...</div>`;
       } else if (mode === "qr") {
         buttonsHtml = `
-                <button class="live-qr-btn" onclick="openQRScannerForSession(${s.session_id})">
-                    <i class="fas fa-qrcode"></i> Scan QR
-                </button>`;
+          <button class="live-qr-btn" onclick="openQRScannerForSession(${s.session_id})">
+            <i class="fas fa-qrcode"></i> Scan QR
+          </button>`;
       } else if (mode === "face") {
         buttonsHtml = `
-                <button class="live-face-btn" onclick="markFaceForSession(${s.session_id})">
-                    <i class="fas fa-camera"></i> Face Recognition
-                </button>`;
+          <button class="live-face-btn" onclick="markFaceForSession(${s.session_id})">
+            <i class="fas fa-camera"></i> Face Recognition
+          </button>`;
       } else if (mode === "manual") {
         buttonsHtml = `
-                <button class="live-session-id-btn" onclick="enterSessionIdForSession(${s.session_id})">
-                    <i class="fas fa-keyboard"></i> Enter Session ID
-                </button>`;
+          <button class="live-session-id-btn" onclick="enterSessionIdForSession(${s.session_id})">
+            <i class="fas fa-keyboard"></i> Enter Session ID
+          </button>`;
       } else {
         buttonsHtml = `
-                <button class="live-qr-btn" onclick="openQRScannerForSession(${s.session_id})">
-                    <i class="fas fa-qrcode"></i> Scan QR
-                </button>
-                <button class="live-face-btn" onclick="markFaceForSession(${s.session_id})">
-                    <i class="fas fa-camera"></i> Face
-                </button>
-                <button class="live-session-id-btn" onclick="enterSessionIdForSession(${s.session_id})">
-                    <i class="fas fa-keyboard"></i> Enter ID
-                </button>`;
+          <button class="live-qr-btn" onclick="openQRScannerForSession(${s.session_id})">
+            <i class="fas fa-qrcode"></i> Scan QR
+          </button>
+          <button class="live-face-btn" onclick="markFaceForSession(${s.session_id})">
+            <i class="fas fa-camera"></i> Face
+          </button>
+          <button class="live-session-id-btn" onclick="enterSessionIdForSession(${s.session_id})">
+            <i class="fas fa-keyboard"></i> Enter ID
+          </button>`;
       }
 
       return `
         <div class="live-session-card" id="live-card-${s.session_id}">
-            <div class="live-session-header">
-                <span class="live-badge">
-                    <span class="live-dot"></span> LIVE ATTENDANCE
-                </span>
-                <span class="live-session-mode">${s.mode || "PENDING"} MODE</span>
+          <div class="live-session-header">
+            <span class="live-badge">
+              <span class="live-dot"></span> LIVE ATTENDANCE
+            </span>
+            <span class="live-session-mode">${s.mode || "PENDING"} MODE</span>
+          </div>
+          <div class="live-session-body">
+            <h2 class="live-subject-name">${escapeHtml(s.course_name)}</h2>
+            <div class="live-info-row">
+              <span>Teacher: <strong>${escapeHtml(s.teacher_name)}</strong></span>
+              <span class="info-separator">|</span>
+              <span>Room: <strong>${s.room_no || "N/A"}</strong></span>
+              <span class="info-separator">|</span>
+              <span>Section: <strong>${s.section_code}</strong></span>
             </div>
-            <div class="live-session-body">
-                <h2 class="live-subject-name">${escapeHtml(s.course_name)}</h2>
-                
-                <div class="live-info-row">
-                    <span>Teacher: <strong>${escapeHtml(s.teacher_name)}</strong></span>
-                    <span class="info-separator">|</span>
-                    <span>Room: <strong>${s.room_no || "N/A"}</strong></span>
-                    <span class="info-separator">|</span>
-                    <span>Section: <strong>${s.section_code}</strong></span>
-                </div>
-                
-                <div class="live-action-row">
-                    <span class="action-label">Mark your attendance now!</span>
-                    <div class="live-action-buttons">
-                        ${buttonsHtml}
-                    </div>
-                </div>
+            <div class="live-action-row">
+              <span class="action-label">Mark your attendance now!</span>
+              <div class="live-action-buttons">${buttonsHtml}</div>
             </div>
-        </div>
-        `;
+          </div>
+        </div>`;
     })
     .join("");
 }
@@ -264,6 +304,7 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
 function hideLiveCard(sessionId) {
   const card = document.getElementById(`live-card-${sessionId}`);
   if (card) {
@@ -271,7 +312,7 @@ function hideLiveCard(sessionId) {
     setTimeout(() => {
       card.remove();
       currentLiveSessions = currentLiveSessions.filter(
-        (s) => s.session_id !== sessionId,
+        (s) => s.session_id !== sessionId
       );
       const bannerContainer = document.getElementById("liveSessionBanner");
       if (bannerContainer && currentLiveSessions.length === 0) {
@@ -322,7 +363,10 @@ async function loadAttendance() {
           const courseDiv = document.createElement("div");
           courseDiv.className = "course-item";
           courseDiv.innerHTML = `
-            <span class="course-name">${course.course_code} - ${course.course_name}</span>
+            <div class="course-info">
+              <span class="course-name">${course.course_code} - ${course.course_name}</span>
+              <div class="course-teacher"><i class="fas fa-chalkboard-teacher me-1"></i> ${course.teacher_name || 'Assigned Teacher'}</div>
+            </div>
             <span class="course-percentage ${colorClass}">${percentage}%</span>
           `;
           courseList.appendChild(courseDiv);
@@ -353,7 +397,7 @@ async function loadAttendance() {
       loadAttendanceHistory();
 
       const lowCourses = data.attendance.filter(
-        (c) => parseFloat(c.percentage) < 75,
+        (c) => parseFloat(c.percentage) < 75
       );
       if (lowCourses.length > 0) {
         const alertBox = document.getElementById("alertBox");
@@ -389,46 +433,99 @@ async function loadAttendance() {
 // ============================================
 
 async function loadAttendanceHistory() {
-  try {
-    const response = await apiCall("/my_attendance_history");
-    if (!response) return;
+    try {
+        const response = await apiCall("/my_attendance_history");
+        if (!response) return;
 
-    const data = await response.json();
-    const historyList = document.getElementById("attendanceHistoryList");
+        const data = await response.json();
+        const historyList = document.getElementById("attendanceHistoryList");
 
-    if (data.status === "success" && data.history && data.history.length > 0) {
-      if (historyList) {
-        historyList.innerHTML = data.history
-          .map((record) => {
-            const isPresent = record.status.toLowerCase() === "present";
-            const statusClass = isPresent ? "status-present" : "status-absent";
-
-            return `
-              <tr>
-                <td>${record.session_date}</td>
-                <td>
-                  <div class="fw-bold">${record.course_code}</div>
-                  <small class="text-muted">${record.course_name}</small>
-                </td>
-                <td><span class="${statusClass}">${record.status}</span></td>
-                <td><span class="mode-badge">${record.mode || "System"}</span></td>
-                <td><span class="time-text">${formatPkTime(record.marked_at)}</span></td>
-              </tr>
+        if (data.status === "success" && data.history && data.history.length > 0) {
+            historyList.innerHTML = data.history.map((record, index) => {
+                const isPresent = record.status.toLowerCase() === "present";
+                const statusClass = isPresent ? "status-present" : "status-absent";
+                const statusIcon = isPresent ? '' : '';
+                
+                // FIRST ROW (latest attendance) gets EYE-CATCHING style
+                const isLatest = index === 0;
+                
+                // Format date nicely
+                const recordDate = record.session_date;
+                const today = new Date().toISOString().split('T')[0];
+                const isToday = recordDate === today;
+                
+                let dateDisplay = recordDate;
+                let dateBadge = '';
+                
+                if (isLatest && isToday) {
+                    dateBadge = '<span style="background: #f55050; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; margin-left: 8px; animation: pulse 1s infinite;">JUST NOW</span>';
+                } else if (isLatest) {
+                    dateBadge = '<span style="background: #f59e0b; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; margin-left: 8px;">LATEST</span>';
+                } else if (isToday) {
+                    dateBadge = '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; margin-left: 8px;">TODAY</span>';
+                }
+                
+                return `
+                    <tr style="${isLatest ? 'background: linear-gradient(90deg, #fef3c7, #fffbeb); border-left: 4px solid #f59e0b; font-weight: 600; animation: slideIn 0.3s ease-out;' : ''}
+                           ${isToday && !isLatest ? 'background: #ecfdf5;' : ''}
+                           transition: all 0.3s ease;">
+                        <td style="padding: 12px 15px;">
+                            <strong style="font-size: 14px;">${dateDisplay}</strong>
+                            ${dateBadge}
+                        </td>
+                        <td style="padding: 12px 15px;">
+                            <div style="font-weight: 600;">${record.course_code}</div>
+                            <small style="color: #64748b;">${record.course_name}</small>
+                        </td>
+                        <td style="padding: 12px 15px;">
+                            <span class="${statusClass}" style="font-weight: 600; font-size: 14px;">
+                                ${statusIcon} ${record.status.toUpperCase()}
+                            </span>
+                        </td>
+                        <td style="padding: 12px 15px;">
+                            <span class="mode-badge" style="background: ${isLatest ? '#f59e0b' : '#e2e8f0'}; 
+                                                           color: ${isLatest ? 'white' : '#475569'};
+                                                           padding: 4px 12px; border-radius: 20px; font-size: 12px;">
+                                <i class="fas ${record.mode === 'Face' ? 'fa-camera' : record.mode === 'QR' ? 'fa-qrcode' : 'fa-keyboard'}"></i>
+                                ${record.mode || 'System'}
+                            </span>
+                        </td>
+                        <td style="padding: 12px 15px;">
+                            <span class="time-text" style="font-family: monospace; font-weight: 600; 
+                                                         background: ${isLatest ? '#fef3c7' : '#f1f5f9'};
+                                                         padding: 4px 8px; border-radius: 8px;">
+                                ${formatPkTime(record.marked_at)}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
+        } else {
+            if (historyList) {
+                historyList.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            <i class="fas fa-calendar-alt" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
+                            No attendance records found.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+    } catch (err) {
+        console.error("Error loading history:", err);
+        const historyList = document.getElementById("attendanceHistoryList");
+        if (historyList) {
+            historyList.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 40px; color: #ef4444;">
+                        <i class="fas fa-exclamation-circle"></i> Error loading history
+                    </td>
+                </tr>
             `;
-          })
-          .join("");
-      }
-    } else {
-      if (historyList) {
-        historyList.innerHTML =
-          '<tr><td colspan="5" class="text-center">No recent records found.</td></tr>';
-      }
+        }
     }
-  } catch (err) {
-    console.error("Error loading history:", err);
-  }
 }
-
 // ============================================
 // UPDATE CHART
 // ============================================
@@ -499,7 +596,7 @@ function closeQRScanner() {
 }
 
 function setScannerFallbackUI(showFallback, noteText) {
-  const fallbackBtn = document.getElementById("enterSessionBtn");
+  const fallbackBtn = document.getElementById("enterSessionIdBtn");
   const fallbackNote = document.getElementById("qr-fallback-note");
   const statusDiv = document.getElementById("qr-status");
 
@@ -508,7 +605,15 @@ function setScannerFallbackUI(showFallback, noteText) {
     fallbackNote.classList.toggle("hidden", !showFallback);
     if (noteText) fallbackNote.textContent = noteText;
   }
-  if (statusDiv && noteText) statusDiv.textContent = noteText;
+  // Remove redundant error message in statusDiv to prevent duplication
+  if (statusDiv) {
+    if (showFallback) {
+      statusDiv.classList.add("hidden");
+    } else {
+      statusDiv.classList.remove("hidden");
+      if (noteText) statusDiv.textContent = noteText;
+    }
+  }
 }
 
 async function startQRScanner() {
@@ -519,7 +624,7 @@ async function startQRScanner() {
   if (typeof Html5Qrcode === "undefined") {
     setScannerFallbackUI(
       true,
-      "QR scanner library cannot load. Enter Session ID manually.",
+      "QR scanner library cannot load. Enter Session ID manually."
     );
     return;
   }
@@ -530,7 +635,7 @@ async function startQRScanner() {
   if (!window.isSecureContext && !isLocalhost) {
     setScannerFallbackUI(
       true,
-      "Camera permission denied. Enter Session ID manually.",
+      "Camera permission denied. Enter Session ID manually."
     );
     return;
   }
@@ -544,7 +649,7 @@ async function startQRScanner() {
       { facingMode: "environment" },
       config,
       onQRSuccess,
-      onQRFailure,
+      onQRFailure
     );
     if (statusDiv) {
       statusDiv.textContent = "Scanning... Position QR code in frame";
@@ -552,14 +657,13 @@ async function startQRScanner() {
     }
   } catch (err) {
     console.error("Unable to start scanning:", err);
+    // Hide the scanning status text if there is an error
     if (statusDiv) {
-      statusDiv.textContent =
-        "Camera access denied. Please allow camera permission.";
-      statusDiv.style.color = "#e74c3c";
+      statusDiv.classList.add("hidden");
     }
     setScannerFallbackUI(
       true,
-      "Camera permission denied. Enter Session ID instead.",
+      "Camera permission denied. Please enter Session ID manually."
     );
     isScanning = false;
   }
@@ -601,12 +705,32 @@ async function onQRSuccess(decodedText) {
     return;
   }
 
-  await markAttendance({
+  const res = await markAttendance({
     sessionId,
     mode: "QR",
     qrPayload: decodedText,
     cardSessionId: activeScanSessionId || sessionId,
   });
+
+  if (res && (res.status === "success" || res.status === "already_marked")) {
+      const isAlready = res.status === "already_marked";
+      const title = isAlready ? "Already Marked" : "Attendance Successful";
+      const msg = isAlready 
+        ? (res.message || "You have already marked attendance for this session.") 
+        : "Your attendance has been recorded successfully via QR.";
+      const icon = isAlready ? "info" : "success";
+      const btnColor = isAlready ? "#64748b" : "#2980b9";
+
+      Swal.fire({
+        title: title,
+        text: msg,
+        icon: icon,
+        confirmButtonText: "Perfect!",
+        confirmButtonColor: btnColor,
+        borderRadius: '20px',
+        allowOutsideClick: false
+      });
+  }
 }
 
 function onQRFailure(errorMessage) {
@@ -620,18 +744,66 @@ function onQRFailure(errorMessage) {
 // ENTER SESSION ID
 // ============================================
 
+function enterSessionIdManually() {
+  // ✅ Close the QR scanner modal first
+  closeQRScanner();
+
+  Swal.fire({
+    title: "Enter Session ID",
+    html: `
+        <div style="text-align: center; padding: 5px;">
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
+                Camera not available? Please enter the <strong>Session ID</strong> provided by your teacher.
+            </p>
+        </div>
+    `,
+    input: "number",
+    inputPlaceholder: "e.g. 12345",
+    showCancelButton: true,
+    confirmButtonText: "Submit Attendance",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#2980b9",
+    cancelButtonColor: "#64748b",
+    borderRadius: '20px',
+    inputAttributes: {
+        style: 'text-align: center; font-size: 1.2rem; font-weight: 700; padding: 12px; border-radius: 12px;'
+    },
+    inputValidator: (value) => {
+      if (!value || parseInt(value) <= 0) {
+        return "Please enter a valid session ID!";
+      }
+    },
+  }).then((result) => {
+    if (result.isConfirmed) {
+      const enteredId = parseInt(result.value, 10);
+      markAttendance({ sessionId: enteredId, mode: "Manual" });
+    }
+  });
+}
+
 function enterSessionIdForSession(sessionId) {
   activeScanSessionId = sessionId;
 
   Swal.fire({
-    title: "Enter Session ID",
+    title: "Verify Session ID",
+    html: `
+        <div style="text-align: center; padding: 5px;">
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
+                Please confirm the <strong>Session ID</strong> to mark your attendance manually.
+            </p>
+        </div>
+    `,
     input: "number",
-    inputLabel: "Session ID provided by teacher",
     inputValue: sessionId,
     showCancelButton: true,
-    confirmButtonText: "Submit",
+    confirmButtonText: "Confirm ID",
+    cancelButtonText: "Back",
     confirmButtonColor: "#2980b9",
     cancelButtonColor: "#64748b",
+    borderRadius: '20px',
+    inputAttributes: {
+        style: 'text-align: center; font-size: 1.2rem; font-weight: 700; padding: 12px; border-radius: 12px;'
+    },
     inputValidator: (value) => {
       if (!value || parseInt(value) <= 0) {
         return "Please enter a valid session ID!";
@@ -651,6 +823,8 @@ function enterSessionIdForSession(sessionId) {
 
 // ============================================
 // MARK ATTENDANCE
+// ✅ CHANGE: Successful mark ke baad markedSessionIds mein add karo
+//    Taake polling mein woh session dobara na dikhe
 // ============================================
 
 async function markAttendance({
@@ -659,8 +833,6 @@ async function markAttendance({
   qrPayload = null,
   cardSessionId = null,
 }) {
-  showMessage("Processing attendance...", "success");
-
   try {
     const payload = { session_id: sessionId, mode: mode };
     if (qrPayload) payload.qr_payload = qrPayload;
@@ -673,25 +845,40 @@ async function markAttendance({
     });
 
     const data = await response.json();
+    const cardId = cardSessionId || sessionId;
 
     if (data.status === "success") {
-      showMessage("✅ Attendance marked successfully!", "success");
-
-      const cardId = cardSessionId || sessionId;
-
-      // currentLiveSessions se yeh session hata do IMMEDIATELY
-      currentLiveSessions = currentLiveSessions.filter(
-        (s) => s.session_id !== cardId,
+      // ✅ Naya mark — banner update karo
+      markedSessionIds.add(cardId);
+      currentLiveSessions = currentLiveSessions.map((s) =>
+        s.session_id === cardId ? { ...s, already_marked: true } : s
       );
+      const bannerContainer = document.getElementById("liveSessionBanner");
+      if (bannerContainer) bannerContainer.innerHTML = "";
+      renderLiveSessionBanner(currentLiveSessions);
 
-      hideLiveCard(cardId);
+      setTimeout(() => showMessage("Attendance marked successfully!", "success"), 300);
       setTimeout(loadAttendance, 500);
+
+    } else if (data.status === "already_marked") {
+      // ✅ Already marked — banner green dikhaو, error mat dikhaو
+      markedSessionIds.add(cardId);
+      currentLiveSessions = currentLiveSessions.map((s) =>
+        s.session_id === cardId ? { ...s, already_marked: true } : s
+      );
+      const bannerContainer = document.getElementById("liveSessionBanner");
+      if (bannerContainer) bannerContainer.innerHTML = "";
+      renderLiveSessionBanner(currentLiveSessions);
+
+      showMessage(data.message || "Attendance already marked.", "info");
+
     } else {
-      showMessage("" + (data.message || "Failed to mark attendance"), "error");
+      // ✅ Real error — enrollment issue, session closed, QR expired etc.
+      showMessage(data.message || "Failed to mark attendance.", "error");
     }
   } catch (err) {
     console.error("Error marking attendance:", err);
-    showMessage("Network error. Please try again.", "error");
+    showMessage("Network error. Please check your connection and try again.", "error");
   }
 }
 
@@ -708,38 +895,61 @@ let faceCardSessionId = null;
 
 async function initFaceLandmarker() {
   if (faceLandmarker) return;
+  
   try {
-    if (
-      typeof FilesetResolver === "undefined" ||
-      typeof FaceLandmarker === "undefined"
-    ) {
-      for (let i = 0; i < 50; i++) {
-        if (
-          typeof FilesetResolver !== "undefined" &&
-          typeof FaceLandmarker !== "undefined"
-        )
-          break;
+    // Wait for CDN scripts to be available
+    if (typeof FilesetResolver === "undefined" || typeof FaceLandmarker === "undefined") {
+      console.log("Waiting for Mediapipe scripts to load...");
+      for (let i = 0; i < 100; i++) { // Increase wait time to 10 seconds
+        if (typeof FilesetResolver !== "undefined" && typeof FaceLandmarker !== "undefined") break;
         await new Promise((r) => setTimeout(r, 100));
       }
     }
-    if (typeof FilesetResolver === "undefined")
-      throw new Error("Mediapipe not found");
+
+    if (typeof FilesetResolver === "undefined" || typeof FaceLandmarker === "undefined") {
+      throw new Error("Mediapipe library failed to load from CDN. Please check your internet connection.");
+    }
 
     const filesetResolver = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
     );
+
     faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
       baseOptions: {
         modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-        delegate: "GPU",
+        delegate: "GPU", // Try GPU first
       },
       outputFaceBlendshapes: true,
       runningMode: "VIDEO",
       numFaces: 1,
     });
+    
+    console.log("AI Models loaded successfully.");
   } catch (err) {
     console.error("AI Model loading error:", err);
-    showMessage("AI Models failed to load.", "error");
+    
+    // Fallback to CPU if GPU fails
+    if (err.message && err.message.includes("GPU")) {
+      console.log("GPU failed, retrying with CPU...");
+      try {
+        const filesetResolver = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+            delegate: "CPU",
+          },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1,
+        });
+        console.log("AI Models loaded successfully using CPU.");
+        return;
+      } catch (cpuErr) {
+        console.error("CPU fallback also failed:", cpuErr);
+      }
+    }
+    
+    showMessage("AI Models failed to load. Please refresh the page or check your internet.", "error");
   }
 }
 
@@ -797,12 +1007,7 @@ function stopCamera() {
 async function startFaceAttendance() {
   const sessionId = document.getElementById("faceSessionId").value;
   if (!sessionId) {
-    Swal.fire({
-      icon: "warning",
-      title: "Session ID Required",
-      text: "Please enter Session ID",
-      confirmButtonColor: "#2980b9",
-    });
+    showMessage("Please enter Session ID first.", "warning");
     return;
   }
   try {
@@ -817,12 +1022,11 @@ async function startFaceAttendance() {
     };
   } catch (err) {
     console.error("Camera error:", err);
-    Swal.fire({
-      icon: "error",
-      title: "Camera Error",
-      text: "Could not access camera",
-      confirmButtonColor: "#2c3e50",
-    });
+    closeFaceModal();
+    showMessage(
+      "Camera access denied. Please allow camera permission and try again.",
+      "error"
+    );
   }
 }
 
@@ -873,23 +1077,29 @@ async function detectFrame() {
         if (nose.x > 0.3 && nose.x < 0.7) success = true;
       } else if (challenge.type === "blink") {
         const eyeBlinkLeft = blendshapes.find(
-          (b) => b.categoryName === "eyeBlinkLeft",
+          (b) => b.categoryName === "eyeBlinkLeft"
         ).score;
         const eyeBlinkRight = blendshapes.find(
-          (b) => b.categoryName === "eyeBlinkRight",
+          (b) => b.categoryName === "eyeBlinkRight"
         ).score;
         if (eyeBlinkLeft > 0.4 || eyeBlinkRight > 0.4) success = true;
       } else if (challenge.type === "left") {
         const nose = landmarks[1];
         const leftEye = landmarks[33];
         const rightEye = landmarks[263];
-        if (Math.abs(nose.x - rightEye.x) < Math.abs(nose.x - leftEye.x) * 0.6)
+        if (
+          Math.abs(nose.x - rightEye.x) <
+          Math.abs(nose.x - leftEye.x) * 0.6
+        )
           success = true;
       } else if (challenge.type === "right") {
         const nose = landmarks[1];
         const leftEye = landmarks[33];
         const rightEye = landmarks[263];
-        if (Math.abs(nose.x - leftEye.x) < Math.abs(nose.x - rightEye.x) * 0.6)
+        if (
+          Math.abs(nose.x - leftEye.x) <
+          Math.abs(nose.x - rightEye.x) * 0.6
+        )
           success = true;
       }
 
@@ -947,29 +1157,78 @@ async function captureAndMatch() {
       body: JSON.stringify({ session_id: sessionId, image: imageData }),
     });
 
-    const data = await response.json();
-    if (data.status === "success") {
-      showFaceStep(3);
-
-      // currentLiveSessions se hata do IMMEDIATELY
-      if (faceCardSessionId) {
-        currentLiveSessions = currentLiveSessions.filter(
-          (s) => s.session_id !== faceCardSessionId,
-        );
-        hideLiveCard(faceCardSessionId);
-      }
-
-      setTimeout(loadAttendance, 500);
-    } else {
-      showMessage(data.message || "Face matching failed", "error");
-      showFaceStep(1);
+    if (!response) {
       stopCamera();
+      document.getElementById("faceModal").classList.add("hidden");
+      showMessage("Could not connect to server. Please check your connection.", "error");
+      return;
     }
+
+    const data = await response.json();
+
+    if (data.status === "success" || data.status === "already_marked") {
+      closeFaceModal();
+      const isAlready = data.status === "already_marked";
+      showMessage(
+        isAlready
+          ? (data.message || "Attendance already marked for this session.")
+          : "Attendance marked successfully!",
+        isAlready ? "info" : "success"
+      );
+
+      if (faceCardSessionId) {
+        markedSessionIds.add(faceCardSessionId);
+        currentLiveSessions = currentLiveSessions.map((s) =>
+          s.session_id === faceCardSessionId ? { ...s, already_marked: true } : s
+        );
+        const bannerContainer = document.getElementById("liveSessionBanner");
+        if (bannerContainer) bannerContainer.innerHTML = "";
+        renderLiveSessionBanner(currentLiveSessions);
+      }
+      setTimeout(loadAttendance, 500);
+
+    } else {
+      stopCamera();
+      document.getElementById("faceModal").classList.add("hidden");
+      Swal.fire({
+        icon: "error",
+        title: "Face Match Failed",
+        text: data.message || "Your face did not match. Please try again.",
+        showCancelButton: true,
+        confirmButtonText: "Try Again",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#e74c3c",
+        cancelButtonColor: "#64748b",
+        allowOutsideClick: false,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          showFaceStep(1);
+          document.getElementById("faceModal").classList.remove("hidden");
+        }
+        // Cancel dabaya — modal band rehta hai, kuch nahi hota
+      });
+    }
+
   } catch (err) {
     console.error("Match error:", err);
-    showMessage("Error matching face", "error");
-    showFaceStep(1);
     stopCamera();
+    document.getElementById("faceModal").classList.add("hidden");
+    Swal.fire({
+      icon: "error",
+      title: "Recognition Failed",
+      text: "Something went wrong. Please check your connection and try again.",
+      showCancelButton: true,
+      confirmButtonText: "Try Again",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#e74c3c",
+      cancelButtonColor: "#64748b",
+      allowOutsideClick: false,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        showFaceStep(1);
+        document.getElementById("faceModal").classList.remove("hidden");
+      }
+    });
   }
 }
 
@@ -977,9 +1236,7 @@ async function captureAndMatch() {
 // LOGOUT
 // ============================================
 
-// Add this to your existing logout function
 async function logout() {
-  // Stop polling when logging out
   if (activeSessionPollingInterval) {
     clearInterval(activeSessionPollingInterval);
     activeSessionPollingInterval = null;
@@ -997,7 +1254,6 @@ async function logout() {
   window.location.href = "/";
 }
 
-// Also add cleanup when page is unloaded
 window.addEventListener("beforeunload", function () {
   if (activeSessionPollingInterval) {
     clearInterval(activeSessionPollingInterval);
@@ -1043,7 +1299,7 @@ async function loadFines() {
           </button>
         </div>
       </div>
-    `,
+    `
       )
       .join("")}
   `;
@@ -1281,3 +1537,4 @@ async function processPayment(fineId, amount) {
 
 loadAttendance();
 startPolling();
+

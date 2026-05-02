@@ -20,7 +20,7 @@
       import {
         FaceLandmarker,
         FilesetResolver,
-      } from "https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.3";
+      } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
       window.FaceLandmarker = FaceLandmarker;
       window.FilesetResolver = FilesetResolver;
     </script>
@@ -87,8 +87,10 @@
       </div>
 
       <!-- COURSE WISE ATTENDANCE -->
-      <div class="section">
-        <h3><i class="fas fa-book"></i> Course-wise Attendance</h3>
+      <div class="section course-attendance-section">
+        <div class="section-header-premium">
+          <h3><i class="fas fa-book"></i> Course-wise Attendance</h3>
+        </div>
         <div id="courseAttendanceList">
           <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin"></i> Loading...
@@ -140,11 +142,11 @@
         </div>
         <div class="qr-modal-footer">
           <button
-            id="enterSessionBtn"
-            class="btn-cancel hidden"
+            id="enterSessionIdBtn"
+            class="btn-enter-manual hidden"
             onclick="enterSessionIdManually()"
           >
-            Enter Session ID Instead
+            <i class="fas fa-keyboard me-2"></i> Enter Session ID
           </button>
           <button class="btn-cancel" onclick="closeQRScanner()">Cancel</button>
         </div>
@@ -164,11 +166,14 @@
         </div>
         <div class="qr-modal-body">
           <!-- Step 1: Session ID -->
-          <div id="faceStep1">
-            <p class="text-center mb-3">
-              Enter the Session ID provided by your teacher
+          <div id="faceStep1" class="text-center py-4">
+            <div class="mb-4">
+              <i class="fas fa-id-card fa-3x" style="color: #2980b9; opacity: 0.15;"></i>
+            </div>
+            <p class="text-center mb-4" style="color: #64748b; font-weight: 500; padding: 0 20px;">
+              Please verify the Session ID before starting the camera verification.
             </p>
-            <div style="max-width: 300px; margin: 0 auto">
+            <div style="max-width: 350px; margin: 0 auto; padding: 0 20px;">
               <input
                 type="number"
                 id="faceSessionId"
@@ -176,17 +181,25 @@
                 placeholder="Enter Session ID"
                 style="
                   width: 100%;
-                  padding: 12px;
-                  border: 2px solid #ddd;
-                  border-radius: 8px;
-                  font-size: 1.2rem;
-                  margin-bottom: 20px;
+                  padding: 15px;
+                  border: 2px solid #e2e8f0;
+                  border-radius: 12px;
+                  font-size: 1.3rem;
+                  margin-bottom: 25px;
                   text-align: center;
+                  font-weight: 700;
+                  color: #2c3e50;
+                  background: #f8fafc;
                 "
               />
-              <button class="qr-btn w-100" onclick="startFaceAttendance()">
-                <i class="fas fa-camera"></i> Open Camera
-              </button>
+              <div class="d-flex gap-3">
+                <button class="btn-cancel-face w-50 py-3" onclick="closeFaceModal()" style="border-radius: 12px; font-weight: 700;">
+                  <i class="fas fa-times me-2"></i> Cancel
+                </button>
+                <button class="btn-enter-manual w-50 py-3" onclick="startFaceAttendance()" style="border-radius: 12px;">
+                  <i class="fas fa-camera me-2"></i> Open Camera
+                </button>
+              </div>
             </div>
           </div>
 
@@ -302,23 +315,19 @@
           </div>
 
           <!-- Step 3: Success -->
-          <div id="faceStep3" class="hidden text-center py-4">
-            <div style="font-size: 4rem; color: #2ecc71; margin-bottom: 20px">
+          <div id="faceStep3" class="hidden text-center py-5">
+            <div class="success-icon-wrap mb-4">
               <i class="fas fa-check-circle"></i>
             </div>
-            <h3 style="color: #27ae60">Verification Successful!</h3>
-            <p class="text-muted">Attendance marked successfully.</p>
+            <h3 class="success-title">Verification Successful!</h3>
+            <p class="success-msg">Your attendance has been recorded successfully.</p>
             <button
-              class="qr-btn"
+              class="btn-finish-attendance"
               onclick="closeFaceModal()"
-              style="background: #27ae60"
             >
-              Done
+              <i class="fas fa-arrow-right me-2"></i> Return to Dashboard
             </button>
           </div>
-        </div>
-        <div class="qr-modal-footer">
-          <button class="btn-cancel" onclick="closeFaceModal()">Cancel</button>
         </div>
       </div>
     </div>

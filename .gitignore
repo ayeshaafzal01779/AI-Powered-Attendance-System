@@ -1,5 +1,33 @@
-.env
+# .env
+# __pycache__/
+# *.pyc
+# dataset/
+# *.log
+
+# Mac system files
+.DS_Store
+.AppleDouble
+.LSOverride
+**/.DS_Store
+
+# Virtual environment
+venv/
+.venv/
+backend/venv/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+
+# Environment
+.env
+.env.local
+
+# Datasets (already hai, but good to keep)
 dataset/
 *.log
+
+# IDE
+.vscode/
+.idea/

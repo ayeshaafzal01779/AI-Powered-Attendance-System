@@ -450,6 +450,7 @@ async function activateQRMode() {
                 qrMsg.innerHTML = '<i class="fas fa-check-circle"></i> QR Code active! Students can scan now.';
                 qrMsg.style.color = '#27ae60';
             }
+            showTeacherToast('QR Code Mode Activated', 'success');
         } else {
             alert('Failed to generate QR code');
             startBtn.disabled = false;
@@ -466,18 +467,6 @@ async function activateQRMode() {
 // DEACTIVATE QR MODE
 // ============================================
 async function deactivateQRMode() {
-    const result = await Swal.fire({
-        title: 'Stop QR Code?',
-        text: 'Students will no longer be able to scan.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#e74c3c',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, stop it!'
-    });
-
-    if (!result.isConfirmed) return;
-
     try {
         const response = await fetch(`${API_BASE_URL}/stop_qr`, {
             method: 'POST',
@@ -531,6 +520,7 @@ async function deactivateQRMode() {
             qrMsg.innerHTML = '<i class="fas fa-info-circle"></i> QR code stopped. Click "Start QR" to activate again.';
             qrMsg.style.color = '#3498db';
         }
+        showTeacherToast('QR Code Mode Stopped', 'info');
     } catch (err) {
         console.error('Error stopping QR:', err);
         alert('Error stopping QR code');
@@ -671,6 +661,7 @@ async function deactivateFaceMode() {
             faceMsg.innerHTML = '<i class="fas fa-info-circle"></i> Face Mode Deactivated.';
             faceMsg.style.color = '#2980b9';
         }
+        showTeacherToast('Face Recognition Mode Deactivated', 'info');
     } catch (err) {
         console.error('Error deactivating Face Mode:', err);
     }
@@ -993,13 +984,32 @@ async function downloadSessionSheet(format = 'excel') {
 
 async function closeSession() {
     const result = await Swal.fire({
-        title: 'Close Session?',
-        text: 'Are you sure you want to end this attendance session?',
-        icon: 'question',
+        title: 'End Attendance Session?',
+        html: `
+            <div style="text-align: center; padding: 10px;">
+                <p style="color: #64748b; font-size: 15px; margin-bottom: 15px;">
+                    Are you sure you want to close this session? <br>
+                    <span style="color: #e74c3c; font-weight: 600;">This action cannot be undone.</span>
+                </p>
+                <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0;">
+                    <i class="fas fa-info-circle" style="color: #3498db; margin-right: 8px;"></i>
+                    <span style="font-size: 13px; color: #475569;">All attendance records will be finalized.</span>
+                </div>
+            </div>
+        `,
+        icon: 'warning',
         showCancelButton: true,
+        confirmButtonText: 'Yes, End Session',
+        cancelButtonText: 'Keep it Open',
         confirmButtonColor: '#e74c3c',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, close it!'
+        cancelButtonColor: '#64748b',
+        reverseButtons: true,
+        background: '#ffffff',
+        borderRadius: '20px',
+        customClass: {
+            title: 'swal-premium-title',
+            popup: 'swal-premium-popup'
+        }
     });
 
     if (!result.isConfirmed) return;
@@ -1014,9 +1024,12 @@ async function closeSession() {
         
         Swal.fire({
             icon: 'success',
-            title: 'Session Closed',
-            text: 'Attendance session has been ended successfully.',
-            confirmButtonColor: '#2980b9'
+            title: 'Session Finalized',
+            text: 'Attendance report has been generated successfully.',
+            confirmButtonColor: '#2980b9',
+            timer: 2500,
+            timerProgressBar: true,
+            borderRadius: '20px'
         });
 
         currentSessionId = null;
@@ -1114,3 +1127,149 @@ document.addEventListener('change', (e) => {
 });
 
 loadCourses();
+
+// ============================================
+// SESSION LEAVE WARNING SYSTEM - GLASS RED (ADDED)
+// ============================================
+
+(function() {
+    // Track session state
+    let hasActiveSession = false;
+    let activeSessionId = null;
+
+    // Update indicator visibility
+    function updateIndicator() {
+        const indicator = document.getElementById('activeSessionIndicator');
+        if (!indicator) return;
+
+        const activeSessionDiv = document.getElementById('activeSession');
+        
+        if (activeSessionDiv && !activeSessionDiv.classList.contains('hidden')) {
+            hasActiveSession = true;
+            indicator.style.display = 'block';
+        } else {
+            hasActiveSession = false;
+            activeSessionId = null;
+            indicator.style.display = 'none';
+        }
+    }
+
+    // Track session ID changes
+    function updateSessionId() {
+        const sessionIdSpan = document.getElementById('activeSessionId');
+        if (sessionIdSpan && sessionIdSpan.textContent !== '--' && sessionIdSpan.textContent !== '') {
+            activeSessionId = parseInt(sessionIdSpan.textContent);
+        }
+    }
+
+    // Browser tab close warning
+    window.addEventListener('beforeunload', function(e) {
+        if (hasActiveSession) {
+            e.preventDefault();
+            e.returnValue = 'You have an active attendance session! Close it before leaving.';
+            return e.returnValue;
+        }
+    });
+
+    // Logout button click handler - Glass Red SweetAlert
+    document.addEventListener('click', async function(e) {
+        if (!hasActiveSession) return;
+
+        const logoutBtn = e.target.closest('.logout-btn');
+        
+        if (logoutBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const result = await Swal.fire({
+                title: 'Active Session Running!',
+                html: `
+                    <div style="
+                        background: rgba(231, 76, 60, 0.1);
+                        backdrop-filter: blur(10px);
+                        border: 1px solid rgba(231, 76, 60, 0.2);
+                        border-radius: 15px;
+                        padding: 20px;
+                        text-align: left;
+                    ">
+                        <p style="font-size: 16px; color: #e74c3c; margin-bottom: 10px;">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            <strong>Attention Required!</strong>
+                        </p>
+                        <p style="color: #555; margin-bottom: 8px;">
+                            You have an <strong>active attendance session</strong>.
+                        </p>
+                        <p style="color: #777; font-size: 14px;">
+                            Students are currently marking attendance. 
+                            Please close the session before logging out.
+                        </p>
+                        ${activeSessionId ? `
+                        <div style="
+                            margin-top: 15px;
+                            padding: 10px;
+                            background: rgba(231, 76, 60, 0.08);
+                            border-radius: 8px;
+                            border: 1px solid rgba(231, 76, 60, 0.15);
+                        ">
+                            <strong style="color: #e74c3c;">Session ID:</strong> 
+                            <span style="color: #c0392b;">${activeSessionId}</span>
+                        </div>` : ''}
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Close Session & Logout',
+                cancelButtonText: 'Stay Here',
+                confirmButtonColor: '#e74c3c',
+                cancelButtonColor: '#34495e',
+                reverseButtons: true,
+                background: '#ffffff'
+            });
+
+            if (result.isConfirmed && activeSessionId) {
+                try {
+                    await fetch(`${API_BASE_URL}/close_session`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: activeSessionId })
+                    });
+                } catch (err) {
+                    console.error('Close error:', err);
+                }
+                logout();
+            }
+        }
+    }, true);
+
+    // Sidebar course warning
+    document.addEventListener('click', function(e) {
+        if (!hasActiveSession) return;
+        
+        const courseCard = e.target.closest('.course-card');
+        if (courseCard) {
+            const startBtn = e.target.closest('.start-btn');
+            if (startBtn && startBtn.disabled) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            Swal.fire({
+                title: '⚠️ Close Session First!',
+                text: 'You have an active session running. Please close it before starting a new one.',
+                icon: 'warning',
+                confirmButtonText: 'Okay',
+                confirmButtonColor: '#e74c3c'
+            });
+        }
+    }, true);
+
+    // Initialize
+    updateIndicator();
+    
+    // Check every 2 seconds
+    setInterval(() => {
+        updateSessionId();
+        updateIndicator();
+    }, 2000);
+})();

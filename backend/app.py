@@ -1234,62 +1234,93 @@ def download_report_alias():
 @app.route('/api/mark_face_attendance', methods=['POST'])
 @role_required(['Student'])
 def mark_face_attendance():
-    """Matches live face and marks attendance"""
     data = request.get_json() or {}
     session_id = data.get('session_id')
     image_base64 = data.get('image')
     user_id = session.get('user_id')
 
-    if not session_id or not image_base64:
-        return jsonify({"status": "error", "message": "Session ID and Image are required"}), 400
+    if not session_id:
+        return jsonify({"status": "error", "message": "Session ID is required."}), 400
+    if not image_base64:
+        return jsonify({"status": "error", "message": "Face image is required."}), 400
 
-    # 1. Verify Face
-    match_result = face_ai.match_face(user_id, image_base64)
-    if match_result['status'] == 'error':
-        return jsonify(match_result), 400
-
-    # 2. Mark Attendance (Reuse existing logic or call mark_attendance logic)
-    # We'll implement the logic here directly for Phase 3
     conn = get_db_connection()
     if not conn:
-        return jsonify({"status": "error", "message": "Database connection failed"}), 500
-    
+        return jsonify({"status": "error", "message": "Database connection failed."}), 500
+
     try:
         cursor = conn.cursor(dictionary=True)
-        
-        # Verify session is active and in Face or Hybrid mode
+
+        # ✅ CHECK 1: Session active aur Face/Hybrid mode mein hai?
         cursor.execute("""
-            SELECT session_id, section_id, teacher_id, is_active, mode 
-            FROM attendance_sessions 
-            WHERE session_id = %s AND is_active = 1 AND mode IN ('Face', 'Hybrid')
+            SELECT session_id, section_id, teacher_id, is_active, mode
+            FROM attendance_sessions
+            WHERE session_id = %s
         """, (session_id,))
         session_row = cursor.fetchone()
-        
+
         if not session_row:
-            return jsonify({"status": "error", "message": "Invalid or inactive Face Session"}), 404
-        
+            return jsonify({"status": "error", "message": "Session not found. Please verify the Session ID with your teacher."}), 404
+
+        if session_row['is_active'] != 1:
+            return jsonify({"status": "error", "message": "This session has ended. Teacher has closed the attendance."}), 400
+
+        session_mode = (session_row.get('mode') or 'Pending').strip()
+        if session_mode not in ('Face', 'Hybrid'):
+            return jsonify({"status": "error", "message": f"Face attendance is not active. Teacher has set mode to: {session_mode}."}), 400
+
         section_id = session_row['section_id']
 
-        # Check if already marked
+        # ✅ CHECK 2: Student is section mein enrolled hai?
         cursor.execute("""
-            SELECT record_id FROM attendance_records 
+            SELECT enrollment_id
+            FROM student_enrollment
+            WHERE student_id = %s AND section_id = %s
+            LIMIT 1
+        """, (user_id, section_id))
+        if not cursor.fetchone():
+            return jsonify({"status": "error", "message": "You are not enrolled in this course/section. Face attendance denied."}), 403
+
+        # ✅ CHECK 3: Same session mein already marked?
+        cursor.execute("""
+            SELECT record_id FROM attendance_records
             WHERE session_id = %s AND student_id = %s
+            LIMIT 1
         """, (session_id, user_id))
         if cursor.fetchone():
-            return jsonify({"status": "error", "message": "Attendance already marked for this session"}), 400
-        
-        # Mark Attendance
+            return jsonify({"status": "already_marked", "message": "Attendance already marked for this session."}), 200
+
+        # ✅ CHECK 4: Aaj is section mein already marked?
         cursor.execute("""
-            INSERT INTO attendance_records (session_id, student_id, section_id, status, mode, marked_at) 
-            VALUES (%s, %s, %s, 'Present', 'Face', %s)
-        """, (session_id, user_id, section_id, datetime.now()))
-        
+            SELECT record_id FROM attendance_records
+            WHERE student_id = %s AND section_id = %s AND attendance_date = CURDATE()
+            LIMIT 1
+        """, (user_id, section_id))
+        if cursor.fetchone():
+            return jsonify({"status": "already_marked", "message": "Attendance already marked for this course today."}), 200
+
+        # ✅ CHECK 5: Face match karo (baad mein — DB checks pehle, AI baad mein)
+        match_result = face_ai.match_face(user_id, image_base64)
+        if match_result['status'] == 'error':
+            return jsonify({
+                "status": "error",
+                "message": match_result.get('message', 'Face not recognized. Please try again in better lighting.')
+            }), 400
+
+        # ✅ INSERT attendance
+        cursor.execute("""
+            INSERT INTO attendance_records
+                (session_id, student_id, section_id, attendance_date, status, mode, sync_status, marked_at)
+            VALUES (%s, %s, %s, CURDATE(), 'Present', 'Face', 'Synced', NOW())
+        """, (session_id, user_id, section_id))
         conn.commit()
+
         return jsonify({"status": "success", "message": "Attendance marked successfully via Face Recognition!"})
-        
+
     except Exception as e:
-        if conn: conn.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
+        if conn:
+            conn.rollback()
+        return jsonify({"status": "error", "message": f"Server error: {str(e)}"}), 500
     finally:
         cursor.close()
         conn.close()
@@ -1561,6 +1592,209 @@ def parse_qr_payload(qr_payload):
     except (ValueError, TypeError):
         return None, None
 
+# ============================================
+# TIME-SLOT SCHEDULE HELPERS
+# ============================================
+
+def get_student_current_class(student_id):
+    """
+    Smart function to find student's current scheduled class.
+    Returns: dict with section+session info, or None (show all)
+    """
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    now = datetime.now()
+    current_time = now.time()
+    current_day = now.strftime('%A')
+    
+    # Weekend check
+    is_weekend = current_day in ['Saturday', 'Sunday']
+    
+    # Check if student has any schedule today
+    cursor.execute("""
+        SELECT COUNT(*) as scheduled_count
+        FROM student_enrollment se
+        JOIN sections sec ON se.section_id = sec.section_id
+        WHERE se.student_id = %s
+          AND sec.class_day = %s
+          AND sec.start_time IS NOT NULL
+          AND sec.end_time IS NOT NULL
+    """, (student_id, current_day))
+    
+    has_schedule = cursor.fetchone()['scheduled_count'] > 0
+    
+    # If weekend or no schedule → return None (show all sessions)
+    if is_weekend or not has_schedule:
+        cursor.close()
+        conn.close()
+        return None
+    
+    # Find current time-slot class
+    cursor.execute("""
+        SELECT 
+            sec.section_id,
+            sec.section_code,
+            sec.start_time,
+            sec.end_time,
+            sec.room_no,
+            c.course_code,
+            c.course_name,
+            u.full_name AS teacher_name,
+            ats.session_id,
+            ats.is_active,
+            ats.mode,
+            TIMESTAMPDIFF(MINUTE, 
+                TIMESTAMP(CURDATE(), sec.end_time), 
+                NOW()) AS minutes_past_end,
+            TIMESTAMPDIFF(MINUTE, 
+                NOW(), 
+                TIMESTAMP(CURDATE(), sec.start_time)) AS minutes_before_start
+        FROM student_enrollment se
+        JOIN sections sec ON se.section_id = sec.section_id
+        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+        JOIN courses c ON cs.course_id = c.course_id
+        JOIN users u ON sec.teacher_id = u.user_id
+        LEFT JOIN attendance_sessions ats 
+            ON ats.section_id = sec.section_id 
+            AND ats.is_active = 1
+            AND ats.session_date = CURDATE()
+        WHERE se.student_id = %s
+          AND sec.class_day = %s
+          AND sec.start_time IS NOT NULL
+          AND sec.end_time IS NOT NULL
+          AND sec.start_time <= %s
+          AND sec.end_time >= %s
+        ORDER BY sec.start_time ASC
+        LIMIT 1
+    """, (student_id, current_day, current_time, current_time))
+    
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    return result
+
+
+def validate_student_class_timing(student_id, section_id):
+    """
+    Check if student can mark attendance in this section RIGHT NOW.
+    Returns: (is_valid: bool, message: str)
+    """
+    conn = get_db_connection()
+    if not conn:
+        return False, "Database connection failed"
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    # Check enrollment first
+    cursor.execute("""
+        SELECT 1 FROM student_enrollment
+        WHERE student_id = %s AND section_id = %s
+        LIMIT 1
+    """, (student_id, section_id))
+    
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return False, "You are not enrolled in this section"
+    
+    # Get schedule
+    cursor.execute("""
+        SELECT 
+            sec.class_day,
+            sec.start_time,
+            sec.end_time,
+            c.course_name
+        FROM sections sec
+        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+        JOIN courses c ON cs.course_id = c.course_id
+        WHERE sec.section_id = %s
+    """, (section_id,))
+    
+    schedule = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    # No schedule set → allow (backward compatible)
+    if not schedule or not schedule.get('start_time') or not schedule.get('end_time'):
+        return True, "No schedule restriction"
+    
+    now = datetime.now()
+    current_time = now.time()
+    current_day = now.strftime('%A')
+    
+    # Weekend → allow
+    if current_day in ['Saturday', 'Sunday']:
+        return True, "Weekend - no restriction"
+    
+    # Day check (only if schedule day is set)
+    if schedule.get('class_day') and schedule['class_day'] != current_day:
+        return False, f"This class is on {schedule['class_day']}, not today"
+    
+    # Time checks
+    if current_time < schedule['start_time']:
+        start_dt = datetime.combine(date.today(), schedule['start_time'])
+        current_dt = datetime.combine(date.today(), current_time)
+        wait_minutes = (start_dt - current_dt).seconds // 60
+        if wait_minutes <= 10:
+            return True, "Within grace period"  # 10 min early allowed
+        return False, f"Class starts at {schedule['start_time']}. Wait {wait_minutes} min"
+    
+    if current_time > schedule['end_time']:
+        end_dt = datetime.combine(date.today(), schedule['end_time'])
+        current_dt = datetime.combine(date.today(), current_time)
+        late_minutes = (current_dt - end_dt).seconds // 60
+        if late_minutes <= 15:
+            return True, "Within late allowance"  # 15 min late allowed
+        return False, f"Class ended at {schedule['end_time']}. Too late"
+    
+    return True, "Valid time slot"
+
+
+def check_teacher_overlap(teacher_id, current_section_id):
+    """
+    Check if teacher already has active session in another section.
+    """
+    conn = get_db_connection()
+    if not conn:
+        return {"has_overlap": False}
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    cursor.execute("""
+        SELECT 
+            ats.session_id,
+            sec.section_code,
+            c.course_name,
+            c.course_code
+        FROM attendance_sessions ats
+        JOIN sections sec ON ats.section_id = sec.section_id
+        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+        JOIN courses c ON cs.course_id = c.course_id
+        WHERE ats.teacher_id = %s
+          AND ats.is_active = 1
+          AND ats.section_id != %s
+          AND ats.session_date = CURDATE()
+        LIMIT 1
+    """, (teacher_id, current_section_id))
+    
+    overlap = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if overlap:
+        return {
+            "has_overlap": True,
+            "message": f"Already active: {overlap['course_code']} ({overlap['section_code']})",
+            "active_session_id": overlap['session_id']
+        }
+    
+    return {"has_overlap": False}        
+
 @app.route('/teacher_courses', methods=['GET'])
 @role_required(['Teacher'])
 def get_teacher_courses():
@@ -1643,6 +1877,17 @@ def start_session():
         "SELECT section_id FROM sections WHERE section_id = %s AND teacher_id = %s AND is_active = 1",
         (section_id, teacher_id)
     )
+        # Check teacher doesn't have another active session
+    overlap = check_teacher_overlap(teacher_id, section_id)
+    if overlap.get('has_overlap'):
+        cursor.close()
+        conn.close()
+        return jsonify({
+            "status": "error",
+            "message": overlap['message'],
+            "suggestion": "Close the existing session first before starting a new one."
+        }), 400
+    
     section = cursor.fetchone()
     if not section:
         cursor.close()
@@ -2138,7 +2383,7 @@ def mark_attendance():
     if mode == 'QR':
         parsed_session_id, qr_timestamp = parse_qr_payload(qr_payload)
         if not parsed_session_id or qr_timestamp is None:
-            return jsonify({"status": "error", "message": "Invalid QR payload"}), 400
+            return jsonify({"status": "error", "message": "Invalid or tampered QR code. Please scan again."}), 400
         session_id = parsed_session_id
     else:
         qr_timestamp = None
@@ -2148,31 +2393,62 @@ def mark_attendance():
 
     conn = get_db_connection()
     if conn is None:
-        return jsonify({"status": "error", "message": "DB connection failed"}), 500
+        return jsonify({"status": "error", "message": "Database connection failed"}), 500
 
     cursor = conn.cursor(dictionary=True)
 
-    # Check if session exists and is active
+    # ✅ CHECK 1: Session exists aur active hai?
     cursor.execute("""
-        SELECT session_id, section_id, is_active, qr_generated_at
+        SELECT session_id, section_id, is_active, qr_generated_at, mode
         FROM attendance_sessions
         WHERE session_id = %s
     """, (session_id,))
     session_result = cursor.fetchone()
-    
+
     if not session_result:
         cursor.close()
         conn.close()
-        return jsonify({"status": "error", "message": "Session not found"}), 404
-    
+        return jsonify({"status": "error", "message": "Session not found. Please ask your teacher to verify the session ID."}), 404
+
     if session_result['is_active'] != 1:
         cursor.close()
         conn.close()
-        return jsonify({"status": "error", "message": "Session is not active"}), 400
+        return jsonify({"status": "error", "message": "This session has ended. Teacher has closed the attendance session."}), 400
+
+    session_mode = (session_result.get('mode') or 'Pending').strip()
+
+    # ✅ CHECK 2: Mode validation
+    if mode == 'QR':
+        if session_mode != 'QR':
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": f"QR attendance is not active. Teacher has set mode to: {session_mode}. Please use the correct method."}), 400
+
+        # QR expiry check
+        qr_generated_at = session_result.get('qr_generated_at')
+        if not qr_generated_at:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "QR code is not active. Please ask your teacher to generate QR."}), 400
+
+        if datetime.now().timestamp() - qr_timestamp > QR_EXPIRY_SECONDS:
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "QR code has expired. Please scan the latest QR code shown by your teacher."}), 400
+
+    elif mode == 'Manual':
+        if session_mode == 'Pending':
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "Teacher has not started attendance yet. Please wait."}), 400
+        if session_mode == 'Face':
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "error", "message": "This session uses Face Recognition. Please use face attendance method."}), 400
 
     section_id = session_result['section_id']
 
-    # Ensure student belongs to this section.
+    # ✅ CHECK 3: Student is section mein enrolled hai?
     cursor.execute("""
         SELECT enrollment_id
         FROM student_enrollment
@@ -2182,36 +2458,46 @@ def mark_attendance():
     if not cursor.fetchone():
         cursor.close()
         conn.close()
-        return jsonify({"status": "error", "message": "You are not enrolled in this section"}), 403
+        return jsonify({"status": "error", "message": "You are not enrolled in this course/section. Please contact your teacher or admin."}), 403
+    
+        # ✅ CHECK 3.5: Time-slot validation
+    is_valid_time, time_msg = validate_student_class_timing(student_id, section_id)
+    
+    if not is_valid_time:
+        cursor.close()
+        conn.close()
+        return jsonify({
+            "status": "error", 
+            "message": time_msg
+        }), 400
 
-    if mode == 'QR':
-        qr_generated_at = session_result.get('qr_generated_at')
-        if not qr_generated_at:
-            cursor.close()
-            conn.close()
-            return jsonify({"status": "error", "message": "QR is not active"}), 400
-        if datetime.now().timestamp() - qr_timestamp > QR_EXPIRY_SECONDS:
-            cursor.close()
-            conn.close()
-            return jsonify({"status": "error", "message": "QR code expired"}), 400
-
-    # Check duplicate attendance
+    # ✅ CHECK 4: Same session mein already marked?
     cursor.execute(
-        "SELECT record_id FROM attendance_records WHERE session_id=%s AND student_id=%s LIMIT 1",
+        "SELECT record_id FROM attendance_records WHERE session_id = %s AND student_id = %s LIMIT 1",
         (session_id, student_id)
     )
     if cursor.fetchone():
         cursor.close()
         conn.close()
-        return jsonify({"status": "error", "message": "Attendance already marked"}), 400
+        return jsonify({"status": "already_marked", "message": "Attendance already marked for this session."}), 200
 
-    # Insert attendance
+    # ✅ CHECK 5: Aaj is section mein kisi bhi session mein already marked?
+    cursor.execute(
+        "SELECT record_id FROM attendance_records WHERE student_id = %s AND section_id = %s AND attendance_date = CURDATE() LIMIT 1",
+        (student_id, section_id)
+    )
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "already_marked", "message": "Attendance already marked for this course today."}), 200
+
+    # ✅ INSERT attendance
     try:
         cursor.execute("""
             INSERT INTO attendance_records
-                (session_id, student_id, section_id, attendance_date, mode, status, sync_status)
+                (session_id, student_id, section_id, attendance_date, mode, status, sync_status, marked_at)
             VALUES
-                (%s, %s, %s, CURDATE(), %s, 'Present', 'Synced')
+                (%s, %s, %s, CURDATE(), %s, 'Present', 'Synced', NOW())
         """, (session_id, student_id, section_id, mode))
         conn.commit()
     except Exception as exc:
@@ -2220,14 +2506,13 @@ def mark_attendance():
         if "Duplicate entry" in error_text:
             cursor.close()
             conn.close()
-            return jsonify({"status": "error", "message": "Attendance already marked"}), 400
+            return jsonify({"status": "already_marked", "message": "Attendance already marked."}), 200
         cursor.close()
         conn.close()
         return jsonify({"status": "error", "message": f"Failed to mark attendance: {error_text}"}), 500
-    
+
     cursor.close()
     conn.close()
-
     return jsonify({"status": "success", "message": "Attendance marked successfully!"})
 
 @app.route('/my_attendance', methods=['GET'])
@@ -2245,6 +2530,7 @@ def get_my_attendance():
         SELECT
             c.course_code,
             c.course_name,
+            t.full_name AS teacher_name,
             COUNT(DISTINCT CASE WHEN UPPER(ar.status) = 'PRESENT' THEN ar.record_id END) as present_days,
             COUNT(DISTINCT ar.record_id) as total_sessions,
             ROUND(
@@ -2255,8 +2541,10 @@ def get_my_attendance():
         JOIN sections sec ON ar.section_id = sec.section_id
         JOIN course_semester cs ON sec.cs_id = cs.cs_id
         JOIN courses c ON cs.course_id = c.course_id
+        JOIN attendance_sessions ats ON ar.session_id = ats.session_id
+        JOIN users t ON ats.teacher_id = t.user_id
         WHERE ar.student_id = %s
-        GROUP BY c.course_code, c.course_name
+        GROUP BY c.course_code, c.course_name, t.full_name
     """, (student_id,))
     
     attendance = cursor.fetchall()
@@ -2282,42 +2570,79 @@ def active_sessions_for_student():
     try:
         cursor = conn.cursor(dictionary=True)
         today_date = date.today()
+        
+        # Get current scheduled class
+        current_class = get_student_current_class(student_id)
+        
+        sessions = []
+        current_class_info = None
+        
+        if current_class is not None:
+            # Schedule exists → Show only current class session
+            if current_class.get('session_id'):
+                # Check if already marked
+                cursor.execute("""
+                    SELECT 1 FROM attendance_records
+                    WHERE session_id = %s AND student_id = %s
+                    LIMIT 1
+                """, (current_class['session_id'], student_id))
+                already_marked = cursor.fetchone() is not None
+                
+                sessions = [{
+                    'session_id': current_class['session_id'],
+                    'section_id': current_class['section_id'],
+                    'mode': current_class.get('mode', 'Pending'),
+                    'course_code': current_class['course_code'],
+                    'course_name': current_class['course_name'],
+                    'section_code': current_class['section_code'],
+                    'room_no': current_class.get('room_no'),
+                    'teacher_name': current_class['teacher_name'],
+                    'already_marked': already_marked
+                }]
+            
+            current_class_info = {
+                "course_code": current_class['course_code'],
+                "course_name": current_class['course_name'],
+                "teacher": current_class['teacher_name'],
+                "timing": f"{current_class['start_time']} - {current_class['end_time']}"
+            }
+        else:
+            # No schedule → Show ALL active sessions (backward compatible)
+            cursor.execute("""
+                SELECT
+                    ats.session_id,
+                    ats.section_id,
+                    ats.mode,
+                    c.course_code,
+                    c.course_name,
+                    sec.section_code,
+                    sec.room_no,
+                    t.full_name AS teacher_name,
+                    CASE 
+                        WHEN ar.record_id IS NOT NULL THEN 1 
+                        ELSE 0 
+                    END AS already_marked
+                FROM attendance_sessions ats
+                JOIN sections sec ON ats.section_id = sec.section_id
+                JOIN course_semester cs ON sec.cs_id = cs.cs_id
+                JOIN courses c ON cs.course_id = c.course_id
+                JOIN users t ON ats.teacher_id = t.user_id
+                JOIN student_enrollment se ON se.section_id = sec.section_id
+                LEFT JOIN attendance_records ar 
+                    ON ar.session_id = ats.session_id 
+                    AND ar.student_id = %s
+                WHERE ats.is_active = 1
+                  AND se.student_id = %s
+                  AND ats.session_date = %s
+            """, (student_id, student_id, today_date))
+            
+            sessions = cursor.fetchall()
 
-        cursor.execute("""
-            SELECT
-                ats.session_id,
-                ats.section_id,
-                ats.mode,
-                c.course_code,
-                c.course_name,
-                sec.section_code,
-                sec.room_no,
-                t.full_name AS teacher_name,
-                CASE 
-                    WHEN ar.record_id IS NOT NULL THEN 1 
-                    ELSE 0 
-                END AS already_marked
-            FROM attendance_sessions ats
-            JOIN sections sec ON ats.section_id = sec.section_id
-            JOIN course_semester cs ON sec.cs_id = cs.cs_id
-            JOIN courses c ON cs.course_id = c.course_id
-            JOIN users t ON ats.teacher_id = t.user_id
-            JOIN student_enrollment se ON se.section_id = sec.section_id
-            LEFT JOIN attendance_records ar 
-                ON ar.session_id = ats.session_id 
-                AND ar.student_id = %s
-            WHERE ats.is_active = 1
-              AND se.student_id = %s
-              AND ats.session_date = %s
-        """, (student_id, student_id, today_date))
-
-        sessions = cursor.fetchall()
-        active = [s for s in sessions if not s['already_marked']]
-
-        for s in active:
-            s.pop('already_marked', None)
-
-        return jsonify({"status": "success", "sessions": active})
+        return jsonify({
+            "status": "success", 
+            "sessions": sessions,
+            "current_class": current_class_info
+        })
 
     except Exception as e:
         print(f"ERROR in active_sessions_for_student: {e}")

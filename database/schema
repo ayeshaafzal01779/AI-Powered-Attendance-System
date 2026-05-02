@@ -147,3 +147,13 @@ CREATE TABLE IF NOT EXISTS facial_data (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_face_student FOREIGN KEY (student_id) REFERENCES users(user_id)
 );
+
+-- Add schedule columns to sections table
+ALTER TABLE sections 
+ADD COLUMN class_day ENUM('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday') NULL,
+ADD COLUMN start_time TIME NULL,
+ADD COLUMN end_time TIME NULL;
+
+-- Add index for faster queries
+CREATE INDEX idx_sections_schedule ON sections(class_day, start_time, end_time);
+DESCRIBE sections;
