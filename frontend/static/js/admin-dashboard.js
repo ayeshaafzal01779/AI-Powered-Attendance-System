@@ -387,7 +387,7 @@ async function issueFine(studentId, courseCode, courseName, percentage) {
     if (data.status === "success") {
       Swal.fire({
         title: "Fine Issued!",
-        text: "Fine issued successfully. Student ko email bhi bhej di gayi hai.",
+        text: "Fine issued successfully. Email has been sent to student.",
         icon: "success",
         confirmButtonColor: "#27ae60",
       }).then(() => {

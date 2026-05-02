@@ -1306,87 +1306,170 @@ async function loadFines() {
   container.insertBefore(fineSection, container.firstChild);
 }
 
-const TEST_CARDS = {
-  4532015112830366: { expiry: "08/28", cvv: "472", name: "Meerab Gohar" },
-  5425233430109903: { expiry: "03/27", cvv: "815", name: "Aqsa Hashmi" },
-  4916338506082832: { expiry: "11/26", cvv: "263", name: "Ayesha Afzal" },
-};
+let stripeInstance = null;
+let stripeElements = null;
+let cardElement = null;
 
-function openPayment(fineId, courseCode, amount) {
+async function openPayment(fineId, courseCode, amount) {
+  if (!stripeInstance) {
+    const keyRes = await fetch(`${API_BASE_URL}/get_stripe_key`, {
+      credentials: "include",
+    });
+    const keyData = await keyRes.json();
+    stripeInstance = Stripe(keyData.publishable_key);
+  }
+
   const modal = document.createElement("div");
   modal.id = "paymentModal";
-  modal.style.cssText = `
-    position:fixed; top:0; left:0; width:100%; height:100%;
-    background:rgba(0,0,0,0.5); z-index:9999;
-    display:flex; align-items:center; justify-content:center;
-  `;
+  modal.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.5);z-index:9999;
+    display:flex;align-items:center;justify-content:center;`;
 
   modal.innerHTML = `
-    <div style="background:white; border-radius:15px; padding:35px;
-                width:450px; max-width:95%; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-
-      <h3 style="color:#2c3e50; margin-bottom:5px;">
-        <i class="fas fa-credit-card text-primary"></i> Pay Fine
+    <div style="background:white;border-radius:15px;padding:35px;
+                width:450px;max-width:95%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <h3 style="color:#2c3e50;margin-bottom:5px;">
+        <i class="fas fa-credit-card"></i> Pay Fine — Stripe
       </h3>
-      <p style="color:#666; margin-bottom:25px;">
-        ${courseCode} | Amount: <strong style="color:#e74c3c;">Rs. ${amount}</strong>
+      <p style="color:#666;margin-bottom:20px;">
+        ${courseCode} | <strong style="color:#e74c3c;">Rs. ${amount}</strong>
       </p>
-
-      <div style="margin-bottom:15px;">
-        <label style="font-weight:600; display:block; margin-bottom:5px;">Card Number</label>
-        <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456"
-          maxlength="19" oninput="formatCardNumber(this)"
-          style="width:100%; padding:12px; border:1px solid #ddd;
-                 border-radius:8px; font-size:14px; letter-spacing:1px;">
-      </div>
-
-      <div style="display:flex; gap:15px; margin-bottom:15px;">
-        <div style="flex:1;">
-          <label style="font-weight:600; display:block; margin-bottom:5px;">Expiry Date</label>
-          <input type="text" id="expiryDate" placeholder="MM/YY" maxlength="5"
-            oninput="formatExpiry(this)"
-            style="width:100%; padding:12px; border:1px solid #ddd;
-                   border-radius:8px; font-size:14px;">
-        </div>
-        <div style="flex:1;">
-          <label style="font-weight:600; display:block; margin-bottom:5px;">CVV</label>
-          <input type="password" id="cvvCode" placeholder="•••" maxlength="3"
-            style="width:100%; padding:12px; border:1px solid #ddd;
-                   border-radius:8px; font-size:14px;">
-        </div>
-      </div>
-
-      <div style="margin-bottom:25px;">
-        <label style="font-weight:600; display:block; margin-bottom:5px;">Card Holder Name</label>
-        <input type="text" id="cardName" placeholder="Your Full Name"
-          style="width:100%; padding:12px; border:1px solid #ddd;
-                 border-radius:8px; font-size:14px;">
-      </div>
-
-      <p id="cardError" style="color:#e74c3c; font-size:13px;
-         margin:-15px 0 15px; display:none;"></p>
-
-      <div style="display:flex; gap:10px;">
-        <button id="payNowBtn" onclick="processPayment(${fineId}, ${amount})"
-          style="flex:1; background:linear-gradient(135deg,#27ae60,#2ecc71);
-                 color:white; border:none; padding:14px; border-radius:8px;
-                 font-weight:700; font-size:16px; cursor:pointer;">
+      <div id="stripe-card-element"
+        style="border:1px solid #ddd;border-radius:8px;padding:14px;
+               margin-bottom:15px;background:#fafafa;"></div>
+      <p id="stripe-error"
+        style="color:#e74c3c;font-size:13px;margin-bottom:10px;display:none;"></p>
+      <div style="display:flex;gap:10px;">
+        <button id="payNowBtn" onclick="processStripePayment(${fineId},${amount})"
+          style="flex:1;background:linear-gradient(135deg,#27ae60,#2ecc71);
+                 color:white;border:none;padding:14px;border-radius:8px;
+                 font-weight:700;font-size:16px;cursor:pointer;">
           <i class="fas fa-lock"></i> Pay Rs. ${amount}
         </button>
         <button onclick="document.getElementById('paymentModal').remove()"
-          style="background:#ecf0f1; border:none; padding:14px 20px;
-                 border-radius:8px; cursor:pointer; font-weight:600;">
+          style="background:#ecf0f1;border:none;padding:14px 20px;
+                 border-radius:8px;cursor:pointer;font-weight:600;">
           Cancel
         </button>
       </div>
-
-      <p style="text-align:center; font-size:11px; color:#aaa; margin-top:15px;">
-        <i class="fas fa-lock"></i> 256-bit SSL Secured Payment
+      <p style="text-align:center;font-size:11px;color:#aaa;margin-top:15px;">
+        <i class="fas fa-lock"></i> Secured by Stripe
       </p>
-    </div>
-  `;
+    </div>`;
 
   document.body.appendChild(modal);
+
+  stripeElements = stripeInstance.elements();
+  cardElement = stripeElements.create("card", {
+    style: {
+      base: {
+        fontSize: "16px",
+        color: "#2c3e50",
+        "::placeholder": { color: "#aaa" },
+      },
+    },
+  });
+  cardElement.mount("#stripe-card-element");
+}
+
+async function processStripePayment(fineId, amount) {
+  const btn = document.getElementById("payNowBtn");
+  const errEl = document.getElementById("stripe-error");
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+  errEl.style.display = "none";
+
+  try {
+    // Step 1: Payment Intent create karo
+    const intentRes = await fetch(`${API_BASE_URL}/create_payment_intent`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fine_id: fineId, amount: amount }),
+    });
+    const intentData = await intentRes.json();
+
+    if (intentData.status !== "success") {
+      errEl.textContent = intentData.message || "Payment setup failed";
+      errEl.style.display = "block";
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fas fa-lock"></i> Pay Rs. ${amount}`;
+      return;
+    }
+
+    // Step 2: Stripe se card payment confirm karo
+    const { error, paymentIntent } = await stripeInstance.confirmCardPayment(
+      intentData.client_secret,
+      { payment_method: { card: cardElement } },
+    );
+
+    // Agar card decline ho gaya
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = "block";
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fas fa-lock"></i> Pay Rs. ${amount}`;
+      return;
+    }
+
+    // Step 3: Payment successful, ab backend mein fine update karo
+    if (paymentIntent.status === "succeeded") {
+      const payRes = await fetch(`${API_BASE_URL}/pay_fine`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fine_id: fineId,
+          payment_intent_id: paymentIntent.id, // ← YE ZAROORI HAI
+        }),
+      });
+      const payData = await payRes.json();
+
+      if (payData.status === "success") {
+        // 🧾 RECEIPT AAYI TO SHOW KARO
+        if (payData.receipt) {
+          document.getElementById("paymentModal").remove();
+          showReceipt(payData.receipt);
+          showMessage("✅ Payment successful! Receipt generated.", "success");
+        } else {
+          // ⚠️ BACKUP — agar receipt nahi aayi to simple success dikhao
+          const txnId = paymentIntent.id;
+          document.getElementById("paymentModal").innerHTML = `
+            <div style="background:white;border-radius:15px;padding:40px;
+                        width:450px;max-width:95%;text-align:center;">
+              <div style="width:70px;height:70px;background:#e8f8f0;
+                          border-radius:50%;display:flex;align-items:center;
+                          justify-content:center;margin:0 auto 20px;">
+                <i class="fas fa-check" style="color:#27ae60;font-size:30px;"></i>
+              </div>
+              <h3 style="color:#27ae60;">Payment Successful!</h3>
+              <p style="color:#666;">Transaction ID: <code>${txnId}</code></p>
+              <p style="color:#666;">Amount: <strong>Rs. ${amount}</strong></p>
+              <button onclick="document.getElementById('paymentModal').remove();location.reload();"
+                style="background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;
+                       border:none;padding:12px 40px;border-radius:8px;
+                       font-weight:700;font-size:15px;cursor:pointer;margin-top:15px;">
+                Done
+              </button>
+            </div>`;
+          showMessage("✅ Payment successful!", "success");
+        }
+      } else {
+        // Backend se error aaya
+        errEl.textContent =
+          payData.message || "Payment failed. Please try again.";
+        errEl.style.display = "block";
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-lock"></i> Pay Rs. ${amount}`;
+      }
+    }
+  } catch (err) {
+    console.error("Payment error:", err);
+    errEl.textContent = "Network error. Please try again.";
+    errEl.style.display = "block";
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-lock"></i> Pay Rs. ${amount}`;
+  }
 }
 
 function formatCardNumber(input) {
@@ -1529,6 +1612,108 @@ async function processPayment(fineId, amount) {
     errorEl.textContent = data.message || "Payment failed. Please try again.";
     errorEl.style.display = "block";
   }
+}
+
+// Payment SUCCESS ke baad ye function call karein
+function showReceipt(receiptData) {
+  const receiptHTML = `
+        <div style="border: 2px dashed #27ae60; padding: 20px; background: #f0fff0; border-radius: 8px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h3 style="color: #27ae60; margin: 0;">✅ PAYMENT SUCCESSFUL</h3>
+                <small>Receipt No: <strong>${receiptData.receipt_no}</strong></small>
+            </div>
+            
+            <table style="width: 100%; font-size: 14px;">
+                <tr>
+                    <td style="padding: 8px 0; color: #666;">Student Name:</td>
+                    <td style="padding: 8px 0; font-weight: bold;">${receiptData.student_name}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #666;">Roll No:</td>
+                    <td style="padding: 8px 0;">${receiptData.roll_no}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #666;">Course:</td>
+                    <td style="padding: 8px 0;">${receiptData.course}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #666;">Attendance:</td>
+                    <td style="padding: 8px 0; color: #e74c3c;">${receiptData.attendance}%</td>
+                </tr>
+                <tr style="border-top: 1px solid #ddd;">
+                    <td style="padding: 12px 0; color: #666; font-size: 16px;"><strong>Amount Paid:</strong></td>
+                    <td style="padding: 12px 0; font-size: 18px; color: #27ae60;"><strong>Rs. ${receiptData.amount}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #666;">Payment ID:</td>
+                    <td style="padding: 8px 0; font-size: 11px;">${receiptData.payment_id}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #666;">Date & Time:</td>
+                    <td style="padding: 8px 0;">${receiptData.paid_at}</td>
+                </tr>
+                <tr style="border-top: 1px solid #ddd;">
+                    <td style="padding: 12px 0; color: #666;"><strong>Status:</strong></td>
+                    <td style="padding: 12px 0; color: #27ae60; font-weight: bold; font-size: 16px;">● ${receiptData.status}</td>
+                </tr>
+            </table>
+            
+            <div style="text-align: center; margin-top: 20px; color: #999; font-size: 11px;">
+                <p>This is a computer-generated receipt</p>
+                <p>Thank you for your payment!</p>
+            </div>
+        </div>
+    `;
+
+  document.getElementById("receiptContent").innerHTML = receiptHTML;
+  document.getElementById("receiptModal").style.display = "block";
+}
+
+// Utility functions
+// Close Receipt AND Reload page
+function closeReceiptAndReload() {
+  document.getElementById("receiptModal").style.display = "none";
+  location.reload();
+}
+
+// Sirf close (baghair reload ke)
+function closeReceipt() {
+  document.getElementById("receiptModal").style.display = "none";
+}
+
+// Print Receipt
+function printReceipt() {
+  const printWindow = window.open("", "_blank");
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Payment Receipt</title>
+        <style>
+          body { font-family: 'Courier New', monospace; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          td { padding: 8px 0; }
+        </style>
+      </head>
+      <body>${document.getElementById("receiptContent").innerHTML}</body>
+    </html>
+  `);
+  printWindow.document.close();
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+}
+
+// Download PDF
+function downloadReceipt() {
+  const element = document.getElementById("receiptContent");
+  const opt = {
+    margin: 0.5,
+    filename: "payment-receipt.pdf",
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+  };
+  html2pdf().set(opt).from(element).save();
 }
 
 // ============================================
