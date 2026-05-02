@@ -577,32 +577,127 @@ body {
    RESPONSIVE
    ============================================ */
 
+@media (max-width: 992px) {
+  :root {
+    --sidebar-width: 70px; /* Compact sidebar for tablets */
+  }
+
+  .sidebar-header h4 {
+    display: none;
+  }
+
+  .nav-link span {
+    display: none;
+  }
+
+  .nav-link {
+    text-align: center;
+    padding: 15px 0;
+  }
+
+  .nav-link i {
+    font-size: 20px;
+    margin: 0;
+  }
+}
+
 @media (max-width: 768px) {
-    .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-    }
-    
-    .main-content {
-        margin-left: 0;
-        padding: 20px;
-    }
-    
-    .face-stats-row {
-        grid-template-columns: 1fr;
-    }
-    
-    .face-sync-panel-body {
-        padding: 20px 16px;
-    }
-    
-    .sync-info-row {
-        flex-direction: column;
-    }
-    
-    .btn-sync-start {
-        width: 100%;
-        justify-content: center;
-    }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 15px;
+  }
+
+  .sidebar-header h4 {
+    display: block;
+    font-size: 16px;
+    margin: 0;
+  }
+
+  .nav-link {
+    display: inline-block;
+    padding: 15px;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav-link.active {
+    border-left: none;
+    border-bottom: 2px solid var(--accent-color);
+  }
+
+  .nav-link span {
+    display: inline;
+    margin-left: 8px;
+  }
+
+  .sidebar nav {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding: 15px;
+  }
+
+  .stats-row {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .face-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .face-sync-panel-body {
+    padding: 20px 16px;
+  }
+
+  .sync-info-row {
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+  }
+
+  .btn-sync-start {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .table-container {
+    padding: 10px;
+    overflow-x: auto;
+  }
+
+  .table {
+    min-width: 600px; /* Force scroll on very small screens */
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar-header h4 {
+    font-size: 14px;
+  }
+
+  .nav-link {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .nav-link i {
+    font-size: 16px;
+  }
+
+  .stat-card h2 {
+    font-size: 20px;
+  }
 }
