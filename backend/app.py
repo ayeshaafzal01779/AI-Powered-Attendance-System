@@ -17,6 +17,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import bcrypt
 from dotenv import load_dotenv
+import stripe
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+stripe.api_key = STRIPE_SECRET_KEY
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ = load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -430,14 +433,15 @@ def get_my_fines():
 # ============================================
 # PAY FINE (STUDENT)
 # ============================================
-  # ============================================
-# PAY FINE (STUDENT) - FIXED
+# ============================================
+# PAY FINE (STUDENT)
 # ============================================
 @app.route('/pay_fine', methods=['POST'])
 @role_required(['Student'])
 def pay_fine():
     data = request.get_json()
     fine_id = data.get('fine_id')
+    payment_intent_id = data.get('payment_intent_id', None)  # ← Add this
     
     conn = get_db_connection()
     if conn is None:
@@ -456,10 +460,12 @@ def pay_fine():
         conn.close()
         return jsonify({"status": "error", "message": "Fine not found or already paid"}), 400
 
-    # Fine info fetch karo (student + course details)
+    # Fine info + student details fetch karo
     cursor2 = conn.cursor(dictionary=True)
     cursor2.execute("""
-        SELECT u.email, u.full_name, f.course_code, f.course_name, f.fine_amount, f.paid_date
+        SELECT u.email, u.full_name, u.user_id as roll_no,
+               f.course_code, f.course_name, f.fine_amount, 
+               f.attendance_percentage, f.fine_id
         FROM fines f 
         JOIN users u ON f.student_id = u.user_id 
         WHERE f.fine_id = %s
@@ -470,9 +476,11 @@ def pay_fine():
     conn.close()
 
     if not fine_info:
+        # Agar fine_info nahi mila to bhi receipt mat bhejo
         return jsonify({"status": "success", "message": "Fine paid successfully"})
 
     paid_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    receipt_no = f"REC-{datetime.now().strftime('%Y%m%d')}-{fine_info['fine_id']:04d}"
 
     # ---- Student ko confirmation email ----
     student_body = f"""
@@ -515,7 +523,6 @@ def pay_fine():
 
     # ---- Admin ko notification email ----
     ADMIN_EMAIL = "aqsahashmi483@gmail.com"
-    
     admin_body = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #2c3e50; padding: 20px; text-align: center;">
@@ -556,7 +563,69 @@ def pay_fine():
     result2 = send_email(ADMIN_EMAIL, f"Fine Paid by {fine_info['full_name']} - AI Attendance System", admin_body)
     print(f"[EMAIL] Admin notification to {ADMIN_EMAIL}: {'OK' if result2 else 'FAILED'}")
 
-    return jsonify({"status": "success", "message": "Fine paid successfully"})
+    # 🔥 RECEIPT DATA — AB YEH EXECUTE HOGA
+    receipt_data = {
+        "receipt_no": receipt_no,
+        "student_name": fine_info['full_name'],
+        "roll_no": fine_info.get('roll_no', 'N/A'),
+        "course": f"{fine_info['course_code']} - {fine_info['course_name']}",
+        "amount": fine_info['fine_amount'],
+        "attendance": fine_info['attendance_percentage'],
+        "status": "PAID",
+        "paid_at": paid_at,
+        "payment_id": payment_intent_id or f"pi_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    }
+
+    return jsonify({
+        "status": "success", 
+        "message": "Fine paid successfully",
+        "receipt": receipt_data  # ← Ye frontend ko receive hoga
+    })
+
+# ============================================
+# STRIPE PAYMENT INTENT (STUDENT)
+# ============================================
+@app.route('/create_payment_intent', methods=['POST'])
+@role_required(['Student'])
+def create_payment_intent():
+    data = request.get_json() or {}
+    fine_id = data.get('fine_id')
+    amount = data.get('amount')
+
+    if not fine_id or not amount:
+        return jsonify({"status": "error", "message": "Missing fields"}), 400
+
+    try:
+        # Convert to PKR paisa (Stripe expects smallest currency unit)
+        amount_in_paisa = int(float(amount)) * 100
+        
+        intent = stripe.PaymentIntent.create(
+            amount=amount_in_paisa,
+            currency="pkr",
+            metadata={
+                "fine_id": fine_id,
+                "student_id": session.get('user_id')
+            }
+        )
+        return jsonify({
+            "status": "success",
+            "client_secret": intent.client_secret
+        })
+    except Exception as e:
+        print(f"[STRIPE ERROR] {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================
+# GET STRIPE PUBLISHABLE KEY (STUDENT)
+# ============================================
+@app.route('/get_stripe_key', methods=['GET'])
+@role_required(['Student'])
+def get_stripe_key():
+    return jsonify({
+        "publishable_key": os.getenv("STRIPE_PUBLISHABLE_KEY")
+    })
+
 # ============================================
 # LOGOUT
 # ============================================
