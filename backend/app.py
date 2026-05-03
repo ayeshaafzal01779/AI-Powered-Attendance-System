@@ -58,6 +58,17 @@ app = Flask(__name__,
             static_folder=os.path.join(BASE_DIR, 'frontend', 'static'),
             static_url_path='/static')
 
+# PWA Support
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_file(os.path.join(BASE_DIR, 'frontend', 'static', 'manifest.json'))
+
+@app.route('/sw.js')
+def serve_sw():
+    response = send_file(os.path.join(BASE_DIR, 'frontend', 'static', 'js', 'sw.js'))
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
+
 # CORS setup - Allow credentials
 allowed_origins = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000")
 _ = CORS(

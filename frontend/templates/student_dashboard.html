@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#2c3e50">
-    <link rel="manifest" href="/static/manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <title>Student Dashboard | Tri-AI Attendance System</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap"
@@ -31,7 +31,7 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/js/sw.js');
+          navigator.serviceWorker.register('/sw.js');
         });
       }
     </script>
@@ -57,6 +57,26 @@
     </div>
 
     <div class="container">
+      <!-- MOBILE BOTTOM NAV -->
+      <div class="mobile-nav">
+        <a href="#" class="nav-item active">
+          <i class="fas fa-home"></i>
+          <span>Home</span>
+        </a>
+        <a href="#attendance-history" class="nav-item">
+          <i class="fas fa-history"></i>
+          <span>History</span>
+        </a>
+        <a href="#fine-section" class="nav-item">
+          <i class="fas fa-wallet"></i>
+          <span>Fines</span>
+        </a>
+        <a href="javascript:void(0)" onclick="logout()" class="nav-item">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Logout</span>
+        </a>
+      </div>
+
       <!-- STATS CARDS -->
       <div class="cards">
         <div class="card green">
