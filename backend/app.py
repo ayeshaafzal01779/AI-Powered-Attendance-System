@@ -2698,8 +2698,9 @@ def active_sessions_for_student():
                 JOIN users t ON ats.teacher_id = t.user_id
                 JOIN student_enrollment se ON se.section_id = sec.section_id
                 LEFT JOIN attendance_records ar 
-                    ON ar.session_id = ats.session_id 
-                    AND ar.student_id = %s
+                ON ar.section_id = ats.section_id
+                AND ar.student_id = %s
+                AND ar.attendance_date = CURDATE()
                 WHERE ats.is_active = 1
                   AND se.student_id = %s
                   AND ats.session_date = %s
