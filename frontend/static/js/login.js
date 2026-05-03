@@ -2,7 +2,7 @@
 // LOGIN JS - WITH DYNAMIC URL
 // ============================================
 
-const API_BASE_URL = 'http://' + window.location.hostname + ':5000';
+const API_BASE_URL = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
 
 async function login() {
     const email = document.getElementById('email').value.trim();
