@@ -2,7 +2,7 @@
 // TEACHER DASHBOARD - WITH DYNAMIC URL
 // ============================================
 
-const API_BASE_URL = 'http://' + window.location.hostname + ':5000';
+const API_BASE_URL = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
 
 // Get user from localStorage
 const user = JSON.parse(localStorage.getItem('user'));
