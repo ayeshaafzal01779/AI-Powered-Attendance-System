@@ -138,7 +138,7 @@ async function pollActiveSessions() {
       // Sirf stopped sessions filter honge (is_active=0 backend query mein already hai)
       const sessions = (data.sessions || []).map((s) => ({
         ...s,
-        already_marked: s.already_marked === true || markedSessionIds.has(s.session_id),
+        already_marked: s.already_marked == true || s.already_marked === 1 || markedSessionIds.has(s.session_id),
       }));
       renderLiveSessionBanner(sessions);
     }
@@ -953,20 +953,19 @@ async function initFaceLandmarker() {
   }
 }
 
-const challenges = [
-  { type: "center", text: "Keep your face centered", icon: "fa-user" },
+// Shuffle function
+function shuffleArray(array) {
+  return array.sort(() => Math.random() - 0.5);
+}
+
+const baseChallenge = { type: "center", text: "Keep your face centered", icon: "fa-user" };
+const dynamicChallenges = [
   { type: "blink", text: "Now blink your eyes", icon: "fa-eye" },
-  {
-    type: "left",
-    text: "Turn your face to the LEFT side",
-    icon: "fa-arrow-left",
-  },
-  {
-    type: "right",
-    text: "Turn your face to the RIGHT side",
-    icon: "fa-arrow-right",
-  },
+  { type: "left", text: "Turn your face to the LEFT side", icon: "fa-arrow-left" },
+  { type: "right", text: "Turn your face to the RIGHT side", icon: "fa-arrow-right" },
 ];
+
+const challenges = [baseChallenge, ...shuffleArray(dynamicChallenges)];
 
 function markFaceForSession(sessionId) {
   faceCardSessionId = sessionId;

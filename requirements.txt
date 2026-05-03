@@ -4,7 +4,8 @@ bidict==0.23.1
 blinker==1.9.0
 chardet==5.2.0
 click==8.1.8
-dlib==20.0.1
+cmake==3.31.6
+dlib==19.24.8
 dnspython==2.7.0
 et_xmlfile==2.0.0
 eventlet==0.33.3
@@ -31,11 +32,10 @@ python-dotenv==1.1.1
 python-engineio==4.7.1
 python-socketio==5.9.0
 qrcode==8.2
-redis==7.0.1
 reportlab==4.4.1
 simple-websocket==1.1.0
 six==1.17.0
-stripe
+stripe==9.4.0
 waitress==3.0.2
 Werkzeug==3.1.5
 wsproto==1.2.0

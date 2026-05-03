@@ -279,12 +279,12 @@ class FaceAI:
 
             # Increased tolerance to 0.75 for better matching in varied conditions
             # Since we have anti-spoofing (blink/turn), we can slightly relax this
-            matches = face_recognition.compare_faces(stored_encodings, live_encoding, tolerance=0.75)
+            matches = face_recognition.compare_faces(stored_encodings, live_encoding, tolerance=0.55)
 
             if True in matches:
                 return {"status": "success", "message": "Face matched!"}
             else:
-                return {"status": "error", "message": f"Face did not match our records (Dist: {round(min_distance, 2)}). Please ensure your face is clear."}
+                return {"status": "error", "message": "Face verification failed. Please ensure you are the registered student and face the camera directly."}
 
         except Exception as e:
             return {"status": "error", "message": f"Recognition error: {str(e)}"}
