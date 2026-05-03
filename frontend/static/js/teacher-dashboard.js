@@ -706,12 +706,12 @@ async function loadAttendanceList() {
                 const modeText = methodLabel(record.mode);
                 
                 row.innerHTML = `
-                    <td style="width: 50px;">${serialNo++}</td>
-                    <td><strong>${record.student_name}</strong></td>
-                    <td>${record.registration_no || '-'}</td>
-                    <td>${timeText}</td>
-                    <td>${modeText}</td>
-                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td data-label="S.No" style="width: 50px;">${serialNo++}</td>
+                    <td data-label="Student"><strong>${record.student_name}</strong></td>
+                    <td data-label="Roll No">${record.registration_no || '-'}</td>
+                    <td data-label="Time">${timeText}</td>
+                    <td data-label="Mode">${modeText}</td>
+                    <td data-label="Status"><span class="${statusClass}">${statusText}</span></td>
                 `;
                 if (record.status === 'present') {
                     presentCount++;

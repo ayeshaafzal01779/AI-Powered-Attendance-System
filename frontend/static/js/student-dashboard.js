@@ -469,20 +469,20 @@ async function loadAttendanceHistory() {
                     <tr style="${isLatest ? 'background: linear-gradient(90deg, #fef3c7, #fffbeb); border-left: 4px solid #f59e0b; font-weight: 600; animation: slideIn 0.3s ease-out;' : ''}
                            ${isToday && !isLatest ? 'background: #ecfdf5;' : ''}
                            transition: all 0.3s ease;">
-                        <td style="padding: 12px 15px;">
+                        <td data-label="Date" style="padding: 12px 15px;">
                             <strong style="font-size: 14px;">${dateDisplay}</strong>
                             ${dateBadge}
                         </td>
-                        <td style="padding: 12px 15px;">
+                        <td data-label="Course" style="padding: 12px 15px;">
                             <div style="font-weight: 600;">${record.course_code}</div>
                             <small style="color: #64748b;">${record.course_name}</small>
                         </td>
-                        <td style="padding: 12px 15px;">
+                        <td data-label="Status" style="padding: 12px 15px;">
                             <span class="${statusClass}" style="font-weight: 600; font-size: 14px;">
                                 ${statusIcon} ${record.status.toUpperCase()}
                             </span>
                         </td>
-                        <td style="padding: 12px 15px;">
+                        <td data-label="Mode" style="padding: 12px 15px;">
                             <span class="mode-badge" style="background: ${isLatest ? '#f59e0b' : '#e2e8f0'}; 
                                                            color: ${isLatest ? 'white' : '#475569'};
                                                            padding: 4px 12px; border-radius: 20px; font-size: 12px;">
@@ -490,7 +490,7 @@ async function loadAttendanceHistory() {
                                 ${record.mode || 'System'}
                             </span>
                         </td>
-                        <td style="padding: 12px 15px;">
+                        <td data-label="Time" style="padding: 12px 15px;">
                             <span class="time-text" style="font-family: monospace; font-weight: 600; 
                                                          background: ${isLatest ? '#fef3c7' : '#f1f5f9'};
                                                          padding: 4px 8px; border-radius: 8px;">

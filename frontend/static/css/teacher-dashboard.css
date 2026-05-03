@@ -978,13 +978,52 @@ body {
         width: 100%;
     }
 
-    /* Attendance Table Responsive */
-    .attendance-table-container {
-        overflow-x: auto;
+    /* Attendance Table Responsive - Card Layout */
+    .attendance-table, 
+    .attendance-table thead, 
+    .attendance-table tbody, 
+    .attendance-table th, 
+    .attendance-table td, 
+    .attendance-table tr {
+        display: block;
+        width: 100%;
     }
 
-    .attendance-table {
-        min-width: 600px;
+    .attendance-table thead {
+        display: none;
+    }
+
+    .attendance-table tr {
+        margin-bottom: 15px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .attendance-table td {
+        text-align: right;
+        padding: 12px 15px !important;
+        position: relative;
+        border-bottom: 1px solid #f1f5f9;
+        min-height: 45px;
+        border-left: none !important;
+        border-right: none !important;
+    }
+
+    .attendance-table td:last-child {
+        border-bottom: none;
+    }
+
+    .attendance-table td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 15px;
+        width: 45%;
+        text-align: left;
+        font-weight: 700;
+        color: #64748b;
     }
 }
 
