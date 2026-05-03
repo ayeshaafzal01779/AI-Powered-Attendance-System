@@ -325,20 +325,20 @@ async function loadLowAttendance() {
     return;
   }
 
-  data.students.forEach((s) => {
+    data.students.forEach((s) => {
     const row = tbody.insertRow();
     const color = s.percentage < 50 ? "danger" : "warning";
     const alreadyIssued = s.fine_status === "Pending";
 
     row.innerHTML = `
-      <td><strong>${s.full_name}</strong><br>
+      <td data-label="Student"><strong>${s.full_name}</strong><br>
           <small class="text-muted">${s.email}</small></td>
-      <td>${s.course_code}<br>
+      <td data-label="Course">${s.course_code}<br>
           <small class="text-muted">${s.course_name}</small></td>
-      <td><span class="badge bg-${color} fs-6">${s.percentage}%</span></td>
-      <td>${s.present_days} / ${s.total_sessions} classes</td>
-      <td><strong>Rs. 500</strong></td>
-      <td>
+      <td data-label="Attendance"><span class="badge bg-${color} fs-6">${s.percentage}%</span></td>
+      <td data-label="Details">${s.present_days} / ${s.total_sessions} classes</td>
+      <td data-label="Fine"><strong>Rs. 500</strong></td>
+      <td data-label="Action">
         ${
           alreadyIssued
             ? `<span class="badge bg-warning text-dark px-3 py-2 fs-6">
@@ -531,11 +531,11 @@ async function loadStudents() {
       data.students.forEach((student) => {
         const row = tbody.insertRow();
         row.innerHTML = `
-          <td>${student.registration_no || "-"}</td>
-          <td>${student.full_name}</td>
-          <td>${student.email}</td>
-          <td>${student.dept_name || "-"}</td>
-          <td><span class="badge bg-success">Active</span></td>
+          <td data-label="Roll No">${student.registration_no || "-"}</td>
+          <td data-label="Name">${student.full_name}</td>
+          <td data-label="Email">${student.email}</td>
+          <td data-label="Department">${student.dept_name || "-"}</td>
+          <td data-label="Status"><span class="badge bg-success">Active</span></td>
           ${rowActionsCell(student.user_id, "Student")}
         `;
       });
@@ -612,10 +612,10 @@ async function loadTeachers() {
       data.teachers.forEach((teacher) => {
         const row = tbody.insertRow();
         row.innerHTML = `
-          <td>${teacher.employee_id || "-"}</td>
-          <td>${teacher.full_name}</td>
-          <td>${teacher.email}</td>
-          <td>${teacher.qualification || "-"}</td>
+          <td data-label="Employee ID">${teacher.employee_id || "-"}</td>
+          <td data-label="Name">${teacher.full_name}</td>
+          <td data-label="Email">${teacher.email}</td>
+          <td data-label="Qualification">${teacher.qualification || "-"}</td>
           ${rowActionsCell(teacher.user_id, "Teacher")}
         `;
       });
