@@ -2,6 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="/static/manifest.json">
     <title>Student Dashboard | Tri-AI Attendance System</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap"
@@ -25,6 +28,13 @@
       window.FilesetResolver = FilesetResolver;
     </script>
     <script src="https://js.stripe.com/v3/"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/js/sw.js');
+        });
+      }
+    </script>
   </head>
   <body>
     <div class="header">
