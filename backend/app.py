@@ -90,7 +90,9 @@ def add_no_cache_headers(response: Response) -> Response:
 app.secret_key = require_env("FLASK_SECRET_KEY")
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 QR_SIGNING_SECRET = require_env("FLASK_SECRET_KEY")
 QR_EXPIRY_SECONDS = 15
 
@@ -2856,11 +2858,16 @@ STRICT RULES:
 @app.route('/chatbot', methods=['POST'])
 @role_required(['Admin', 'Teacher', 'Student'])
 def chatbot():
-    role = session.get('role')  # 'Admin', 'Teacher', or 'Student'
+    role = session.get('role')
+    
+    # Role check
+    if not role or role not in CHAT_SYSTEM_PROMPTS:
+        return jsonify({"status": "error", "message": "Session expired. Please login again."}), 401
+    
     data = request.get_json() or {}
     
     user_message = (data.get('message') or '').strip()
-    history = data.get('history') or []  # list of {role, content} dicts
+    history = data.get('history') or []
     
     if not user_message:
         return jsonify({"status": "error", "message": "Message is required"}), 400
@@ -2896,7 +2903,6 @@ def chatbot():
         )
 
         or_data = or_response.json()
-        print(f"[OPENROUTER RESPONSE] {or_data}")
 
         if "error" in or_data:
             error_msg = or_data["error"].get("message", "Unknown error")
