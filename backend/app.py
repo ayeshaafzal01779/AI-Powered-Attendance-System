@@ -79,9 +79,7 @@ def add_no_cache_headers(response: Response) -> Response:
 app.secret_key = require_env("FLASK_SECRET_KEY")
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 QR_SIGNING_SECRET = require_env("FLASK_SECRET_KEY")
 QR_EXPIRY_SECONDS = 15
 
@@ -1510,6 +1508,40 @@ def admin_add_user():
 
         conn.commit()
         user_id = cursor.lastrowid
+
+        # ✅ Auto-enroll student into semester 1 courses
+        if role == 'Student':
+            try:
+                # Find first semester for the department
+                cursor.execute("""
+                    SELECT s.sem_id 
+                    FROM semesters s
+                    JOIN programs p ON s.program_id = p.program_id
+                    WHERE p.dept_id = %s
+                    ORDER BY s.semester_number ASC
+                    LIMIT 1
+                """, (department_id,))
+                sem_row = cursor.fetchone()
+                
+                if sem_row:
+                    # Get all sections for this semester
+                    cursor.execute("""
+                        SELECT sec.section_id 
+                        FROM sections sec
+                        JOIN course_semester cs ON sec.cs_id = cs.cs_id
+                        WHERE cs.sem_id = %s
+                    """, (sem_row['sem_id'],))
+                    
+                    sections = cursor.fetchall()
+                    for s in sections:
+                        cursor.execute("""
+                            INSERT IGNORE INTO student_enrollment (student_id, section_id)
+                            VALUES (%s, %s)
+                        """, (user_id, s['section_id']))
+                    conn.commit()
+            except Exception as e:
+                print(f"Auto-enroll error: {e}")
+
     except Exception as exc:
         conn.rollback()
         cursor.close()
@@ -2112,7 +2144,7 @@ def get_attendance_list():
             u.full_name as student_name,
             u.registration_no,
             CASE
-                WHEN ar.record_id IS NULL THEN CASE WHEN %s = 1 THEN 'not_marked' ELSE 'absent' END
+                WHEN ar.record_id IS NULL THEN 'not_marked'
                 WHEN UPPER(ar.status) = 'PRESENT' THEN 'present'
                 WHEN UPPER(ar.status) = 'ABSENT' THEN 'absent'
                 ELSE 'not_marked'
@@ -2124,13 +2156,12 @@ def get_attendance_list():
         LEFT JOIN attendance_records ar ON ar.student_id = u.user_id AND ar.session_id = %s
         WHERE se.section_id = %s
         ORDER BY u.full_name
-    """, (session_row.get('is_active', 0), session_id, session_row['section_id']))
+    """, (session_id, session_row['section_id']))
     
     records = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    # Convert datetime objects to ISO format strings for proper timezone handling
     for record in records:
         if record['marked_at']:
             record['marked_at'] = record['marked_at'].isoformat()
@@ -2847,16 +2878,11 @@ STRICT RULES:
 @app.route('/chatbot', methods=['POST'])
 @role_required(['Admin', 'Teacher', 'Student'])
 def chatbot():
-    role = session.get('role')
-    
-    # Role check
-    if not role or role not in CHAT_SYSTEM_PROMPTS:
-        return jsonify({"status": "error", "message": "Session expired. Please login again."}), 401
-    
+    role = session.get('role')  # 'Admin', 'Teacher', or 'Student'
     data = request.get_json() or {}
     
     user_message = (data.get('message') or '').strip()
-    history = data.get('history') or []
+    history = data.get('history') or []  # list of {role, content} dicts
     
     if not user_message:
         return jsonify({"status": "error", "message": "Message is required"}), 400
@@ -2892,6 +2918,7 @@ def chatbot():
         )
 
         or_data = or_response.json()
+        print(f"[OPENROUTER RESPONSE] {or_data}")
 
         if "error" in or_data:
             error_msg = or_data["error"].get("message", "Unknown error")
