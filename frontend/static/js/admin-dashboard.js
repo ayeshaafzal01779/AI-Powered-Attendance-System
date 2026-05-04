@@ -1,23 +1,75 @@
-// ============================================
-// ADMIN DASHBOARD - WITH DYNAMIC URL
-// ============================================
+// ==================== CONFIGURATION ====================
+// API Base URL - JAB API READY HO TO SIRF YAHAN CHANGE KARNA
+// Abhi: null means dummy data use karo
+// Baad mein: "http://localhost:5000/api" likh do
+const API_BASE_URL = null; // ✅ API READY HO TO SIRF YAHAN CHANGE KARNA!
 
-const API_BASE_URL = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
+// ==================== GLOBAL VARIABLES ====================
+let securityAlerts = [];
+let usersList = [];
 
-// Get user from localStorage
-const user = JSON.parse(localStorage.getItem("user"));
-const userId = localStorage.getItem("userId");
-const userRole = localStorage.getItem("userRole");
+// ==================== DUMMY DATA (JAB TAK API NAHI HAI) ====================
+const DUMMY_ALERTS = [
+  {
+    id: 1,
+    type: "critical",
+    title: "Multiple Failed Login Attempts",
+    message:
+      '3 failed login attempts detected for user "admin@triai.com" from IP 192.168.1.105',
+    timestamp: "2026-04-17 09:15:23",
+    status: "unread",
+  },
+  {
+    id: 2,
+    type: "warning",
+    title: "Suspicious QR Scan Attempt",
+    message: "Expired QR code scan attempted by student BIT22004",
+    timestamp: "2026-04-17 08:45:12",
+    status: "unread",
+  },
+  {
+    id: 3,
+    type: "critical",
+    title: "Face Recognition Spoof Attempt",
+    message:
+      "Potential photo spoofing detected during attendance marking - Student BIT22022",
+    timestamp: "2026-04-16 14:30:45",
+    status: "read",
+  },
+  {
+    id: 4,
+    type: "info",
+    title: "Unusual Attendance Pattern",
+    message: "Student Ali Raza (BIT22004) attendance dropped to 65% this week",
+    timestamp: "2026-04-16 10:20:33",
+    status: "unread",
+  },
+  {
+    id: 5,
+    type: "warning",
+    title: "Session Timeout",
+    message: "Teacher session expired unexpectedly - Course: CS-304",
+    timestamp: "2026-04-15 11:00:00",
+    status: "read",
+  },
+];
 
-// ========== DATATABLE INSTANCES ==========
-let studentsDataTable = null;
-let teachersDataTable = null;
-
-// Role check
-if (!user || !userId || userRole !== "Admin") {
-  alert("Access Denied. Admin only.");
-  window.location.href = "/";
-}
+const DUMMY_STUDENTS = [
+  {
+    rollNo: "BIT22022",
+    name: "Ayesha Afzal",
+    department: "IT",
+    semester: "7th",
+    faceData: "registered",
+  },
+  {
+    rollNo: "BIT22004",
+    name: "Ali Raza",
+    department: "IT",
+    semester: "7th",
+    faceData: "notset",
+  },
+];
 
 // ============================================
 // API CALL FUNCTION
@@ -304,97 +356,128 @@ function initEditUserForm() {
   if (form) form.addEventListener("submit", submitEditUserForm);
 }
 
-// ============================================
-// LOW ATTENDANCE & FINES
-// ============================================
+// ==================== TODAY'S PRESENT STUDENTS FUNCTIONS ====================
 
-async function loadLowAttendance() {
-  const tbody = document.getElementById("lowAttendanceBody");
-  tbody.innerHTML =
-    '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+// DUMMY DATA FOR TODAY'S PRESENT (JAB TAK API NAHI HAI)
+const DUMMY_PRESENT_STUDENTS = [
+  {
+    rollNo: "BIT22022",
+    name: "Ayesha Afzal",
+    department: "IT",
+    time: "09:05:32 AM",
+    mode: "Face Recognition",
+  },
+  {
+    rollNo: "BIT22023",
+    name: "Meerab Gohar",
+    department: "IT",
+    time: "09:07:15 AM",
+    mode: "QR Code",
+  },
+  {
+    rollNo: "BIT22024",
+    name: "Aqsa Bibi",
+    department: "IT",
+    time: "09:03:45 AM",
+    mode: "Face Recognition",
+  },
+  {
+    rollNo: "BIT22025",
+    name: "Sara Khan",
+    department: "CS",
+    time: "09:08:22 AM",
+    mode: "QR Code",
+  },
+  {
+    rollNo: "BIT22026",
+    name: "Omar Ali",
+    department: "CS",
+    time: "09:10:00 AM",
+    mode: "Manual",
+  },
+  {
+    rollNo: "BIT22027",
+    name: "Fatima Zafar",
+    department: "SE",
+    time: "09:02:30 AM",
+    mode: "Face Recognition",
+  },
+  {
+    rollNo: "BIT22028",
+    name: "Hamza Ahmed",
+    department: "IT",
+    time: "09:06:18 AM",
+    mode: "QR Code",
+  },
+  {
+    rollNo: "BIT22029",
+    name: "Zainab Malik",
+    department: "CS",
+    time: "09:09:45 AM",
+    mode: "Face Recognition",
+  },
+];
 
-  const response = await apiCall("/admin_low_attendance");
-  if (!response) return;
+// Dashboard stats ke liye dummy data
+let todayPresentData = {
+  percentage: 94.2,
+  totalStudents: 1482,
+  presentCount: 78,
+  date: new Date().toLocaleDateString("en-PK", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }),
+  presentStudents: DUMMY_PRESENT_STUDENTS,
+};
 
-  const data = await response.json();
-  tbody.innerHTML = "";
-
-  if (!data.students || data.students.length === 0) {
-    tbody.innerHTML =
-      '<tr><td colspan="6" class="text-center text-success"><i class="fas fa-check-circle me-2"></i>No students with low attendance!</td></tr>';
-    return;
+// API se today's present data fetch karne ka function (FUTURE-PROOF)
+async function fetchTodayPresentData() {
+  // AGAR API READY HAI TO REAL DATA LEKAR AAYEGA
+  if (API_BASE_URL !== null) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/attendance/today/present`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
+      });
+      const result = await response.json();
+      if (result.success) {
+        todayPresentData = result.data;
+        updateTodayPresentCard();
+        return result.data;
+      }
+    } catch (error) {
+      console.error("API Error - using dummy data:", error);
+    }
   }
 
-    data.students.forEach((s) => {
-    const row = tbody.insertRow();
-    const color = s.percentage < 50 ? "danger" : "warning";
-    const alreadyIssued = s.fine_status === "Pending";
-
-    row.innerHTML = `
-      <td data-label="Student"><strong>${s.full_name}</strong><br>
-          <small class="text-muted">${s.email}</small></td>
-      <td data-label="Course">${s.course_code}<br>
-          <small class="text-muted">${s.course_name}</small></td>
-      <td data-label="Attendance"><span class="badge bg-${color} fs-6">${s.percentage}%</span></td>
-      <td data-label="Details">${s.present_days} / ${s.total_sessions} classes</td>
-      <td data-label="Fine"><strong>Rs. 500</strong></td>
-      <td data-label="Action">
-        ${
-          alreadyIssued
-            ? `<span class="badge bg-warning text-dark px-3 py-2 fs-6">
-               <i class="fas fa-clock me-1"></i> Pending
-             </span>`
-            : `<button class="btn btn-danger btn-sm px-3"
-               onclick="issueFine(${s.user_id}, '${s.course_code}', '${s.course_name}', ${s.percentage})">
-               <i class="fas fa-gavel me-1"></i> Issue Fine
-             </button>`
-        }
-      </td>
-    `;
-  });
+  // AGAR API READY NAHI HAI TO DUMMY DATA USE KARO
+  return todayPresentData;
 }
 
-// ============================================
-// ISSUR FINE (ADMIN)
-// ============================================
+// Dashboard card update karne ka function
+async function updateTodayPresentCard() {
+  const data = await fetchTodayPresentData();
+  const percentageElement = document.getElementById("todayPresentCount");
+  const studentCountElement = document.getElementById(
+    "todayPresentStudentCount",
+  );
 
-async function issueFine(studentId, courseCode, courseName, percentage) {
-  Swal.fire({
-    title: "Issue Fine?",
-    html: `<b>${courseName}</b><br>Course: <b>${courseCode}</b><br>Fine Amount: <b>Rs. 500</b>`,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: "#e74c3c",
-    cancelButtonColor: "#95a5a6",
-    confirmButtonText: "Yes, Issue Fine!",
-    cancelButtonText: "Cancel",
-  }).then(async (result) => {
-    if (!result.isConfirmed) return;
+  if (percentageElement) {
+    percentageElement.textContent = `${data.percentage}%`;
+  }
+  if (studentCountElement) {
+    studentCountElement.textContent = `(${data.presentCount} / ${data.totalStudents} students)`;
 
-    const response = await apiCall("/admin_issue_fine", {
-      method: "POST",
-      body: JSON.stringify({
-        student_id: studentId,
-        course_code: courseCode,
-        course_name: courseName,
-        percentage: percentage,
-      }),
-    });
-
-    if (!response) return;
-    const data = await response.json();
-
-    if (data.status === "success") {
-      Swal.fire({
-        title: "Fine Issued!",
-        text: "Fine issued successfully. Email has been sent to student.",
-        icon: "success",
-        confirmButtonColor: "#27ae60",
-      }).then(() => {
-        // Dono tables refresh karo
-        loadLowAttendance();
-        loadFinesHistory();
-      });
+    // Agar color coding chahiye to:
+    const percentage = data.percentage;
+    if (percentage < 75) {
+      percentageElement.classList.add("text-danger");
+      percentageElement.classList.remove("text-success");
+    } else if (percentage < 85) {
+      percentageElement.classList.add("text-warning");
+      percentageElement.classList.remove("text-danger", "text-success");
     } else {
       Swal.fire({
         title: "Error!",
@@ -516,167 +599,166 @@ async function loadStudents() {
       return;
     }
 
-    // Destroy existing DataTable
-    if (studentsDataTable) {
-      studentsDataTable.destroy();
-      studentsDataTable = null;
-    }
+  // CSV format mein data banao
+  let csvContent = "Roll No,Student Name,Department,Time,Mode\n";
+  data.presentStudents.forEach((student) => {
+    csvContent += `${student.rollNo},${student.name},${student.department},${student.time},${student.mode}\n`;
+  });
 
-    tbody.innerHTML = "";
+  // CSV file download karo
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `present_students_${data.date.replace(/\s/g, "_")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 
-    if (!data.students || data.students.length === 0) {
-      tbody.innerHTML =
-        '<tr><td colspan="6" class="text-center text-muted">No students found</td></tr>';
-    } else {
-      data.students.forEach((student) => {
-        const row = tbody.insertRow();
-        row.innerHTML = `
-          <td data-label="Roll No">${student.registration_no || "-"}</td>
-          <td data-label="Name">${student.full_name}</td>
-          <td data-label="Email">${student.email}</td>
-          <td data-label="Department">${student.dept_name || "-"}</td>
-          <td data-label="Status"><span class="badge bg-success">Active</span></td>
-          ${rowActionsCell(student.user_id, "Student")}
-        `;
-      });
-    }
+  alert("✅ Present list exported successfully!");
+}
 
-    // Initialize DataTable
-    studentsDataTable = new simpleDatatables.DataTable("#studentsTable", {
-      perPage: 10,
-      perPageSelect: [5, 10, 20, 50],
-      searchable: true,
-      sortable: true,
-      labels: {
-        placeholder: "Search students...",
-        perPage: "{select} entries per page",
-        noRows: "No students found",
-        info: "Showing {start} to {end} of {rows} entries",
-      },
-    });
-    // ✅ ADD THIS CODE - Force Black Header
-    setTimeout(() => {
-      document
-        .querySelectorAll("#studentsTable_wrapper .dataTable-table thead th")
-        .forEach((th) => {
-          th.style.backgroundColor = "#212529";
-          th.style.color = "#ffffff";
-          th.style.fontWeight = "600";
-        });
-    }, 50);
-  } catch (err) {
-    console.error("Error loading students:", err);
-    tbody.innerHTML =
-      '<tr><td colspan="6" class="text-center text-danger">Error loading students</td></tr>';
+// Real-time update ke liye (every 5 minutes agar API ready ho to)
+function startAutoRefresh() {
+  if (API_BASE_URL !== null) {
+    setInterval(() => {
+      updateTodayPresentCard();
+    }, 300000); // 5 minutes = 300,000 milliseconds
   }
 }
 
-// ============================================
-// LOAD TEACHERS
-// ============================================
+// ==================== TEACHERS LIST FUNCTIONS ====================
 
-async function loadTeachers() {
-  const tbody = document.getElementById("teachersTableBody");
-  if (!tbody) return;
+// DUMMY DATA FOR TEACHERS (JAB TAK API NAHI HAI)
+const DUMMY_TEACHERS = [
+  {
+    id: "T-2024-01",
+    name: "Dr. Shahid Khan",
+    department: "CS",
+    designation: "Associate Professor",
+    courses: ["CS-101", "CS-304", "CS-401"],
+    status: "active",
+    email: "shahid.khan@triai.edu",
+    phone: "+92 300 1234567",
+    joiningDate: "2020-08-15",
+    qualification: "PhD Computer Science",
+  },
+  {
+    id: "T-2024-02",
+    name: "Prof. Ayesha Siddiqui",
+    department: "IT",
+    designation: "Professor",
+    courses: ["IT-201", "IT-202", "IT-301"],
+    status: "active",
+    email: "ayesha.siddiqui@triai.edu",
+    phone: "+92 300 2345678",
+    joiningDate: "2018-01-10",
+    qualification: "PhD Information Technology",
+  },
+  {
+    id: "T-2024-03",
+    name: "Dr. Imran Ali",
+    department: "SE",
+    designation: "Assistant Professor",
+    courses: ["SE-101", "SE-102"],
+    status: "active",
+    email: "imran.ali@triai.edu",
+    phone: "+92 300 3456789",
+    joiningDate: "2019-09-01",
+    qualification: "PhD Software Engineering",
+  },
+  {
+    id: "T-2024-04",
+    name: "Ms. Fatima Zafar",
+    department: "IT",
+    designation: "Lecturer",
+    courses: ["IT-101", "IT-102"],
+    status: "active",
+    email: "fatima.zafar@triai.edu",
+    phone: "+92 300 4567890",
+    joiningDate: "2021-02-20",
+    qualification: "MS Information Technology",
+  },
+  {
+    id: "T-2024-05",
+    name: "Dr. Usman Chaudhry",
+    department: "AI",
+    designation: "Associate Professor",
+    courses: ["AI-301", "AI-302", "ML-401"],
+    status: "active",
+    email: "usman.chaudhry@triai.edu",
+    phone: "+92 300 5678901",
+    joiningDate: "2017-11-05",
+    qualification: "PhD Artificial Intelligence",
+  },
+  {
+    id: "T-2024-06",
+    name: "Mr. Bilal Ahmed",
+    department: "CS",
+    designation: "Lecturer",
+    courses: ["CS-201", "CS-202"],
+    status: "inactive",
+    email: "bilal.ahmed@triai.edu",
+    phone: "+92 300 6789012",
+    joiningDate: "2022-08-01",
+    qualification: "MS Computer Science",
+  },
+  {
+    id: "T-2024-07",
+    name: "Dr. Sana Tariq",
+    department: "SE",
+    designation: "Professor",
+    courses: ["SE-401", "SE-402", "SE-403"],
+    status: "onleave",
+    email: "sana.tariq@triai.edu",
+    phone: "+92 300 7890123",
+    joiningDate: "2015-03-12",
+    qualification: "PhD Software Engineering",
+  },
+];
 
-  tbody.innerHTML =
-    '<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+// Teachers data store karne ke liye
+let allTeachers = [];
 
-  try {
-    const response = await apiCall("/admin_teachers");
-    if (!response) {
-      tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-danger">Failed to connect</td></tr>';
-      return;
-    }
-
-    const data = await response.json();
-    if (data.status !== "success") {
-      tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-danger">Error loading teachers</td></tr>';
-      return;
-    }
-
-    // Destroy existing DataTable
-    if (teachersDataTable) {
-      teachersDataTable.destroy();
-      teachersDataTable = null;
-    }
-
-    tbody.innerHTML = "";
-
-    if (!data.teachers || data.teachers.length === 0) {
-      tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-muted">No teachers found</td></tr>';
-    } else {
-      data.teachers.forEach((teacher) => {
-        const row = tbody.insertRow();
-        row.innerHTML = `
-          <td data-label="Employee ID">${teacher.employee_id || "-"}</td>
-          <td data-label="Name">${teacher.full_name}</td>
-          <td data-label="Email">${teacher.email}</td>
-          <td data-label="Qualification">${teacher.qualification || "-"}</td>
-          ${rowActionsCell(teacher.user_id, "Teacher")}
-        `;
+// Dashboard stats update karne ke liye
+async function fetchTeachersData() {
+  // AGAR API READY HAI TO REAL DATA LEKAR AAYEGA
+  if (API_BASE_URL !== null) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/teachers`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
       });
+      const result = await response.json();
+      if (result.success) {
+        allTeachers = result.data;
+        updateTeachersCard();
+        return result.data;
+      }
+    } catch (error) {
+      console.error("API Error - using dummy data:", error);
     }
-
-    // Initialize DataTable
-    teachersDataTable = new simpleDatatables.DataTable("#teachersTable", {
-      perPage: 10,
-      perPageSelect: [5, 10, 20, 50],
-      searchable: true,
-      sortable: true,
-      labels: {
-        placeholder: "Search teachers...",
-        perPage: "{select} entries per page",
-        noRows: "No teachers found",
-        info: "Showing {start} to {end} of {rows} entries",
-      },
-    });
-
-    setTimeout(() => {
-      document
-        .querySelectorAll("#teachersTable_wrapper .dataTable-table thead th")
-        .forEach((th) => {
-          th.style.backgroundColor = "#212529";
-          th.style.color = "#ffffff";
-          th.style.fontWeight = "600";
-        });
-    }, 50);
-  } catch (err) {
-    console.error("Error loading teachers:", err);
-    tbody.innerHTML =
-      '<tr><td colspan="5" class="text-center text-danger">Error loading teachers</td></tr>';
   }
+
+  // AGAR API READY NAHI HAI TO DUMMY DATA USE KARO
+  allTeachers = DUMMY_TEACHERS;
+  updateTeachersCard();
+  return allTeachers;
 }
 
-// ============================================
-// SECTION NAVIGATION
-// ============================================
+// Dashboard card update karne ka function
+async function updateTeachersCard() {
+  const data = await fetchTeachersData();
+  const countElement = document.getElementById("totalTeachersCount");
+  const subtextElement = document.getElementById("totalTeachersSubtext");
 
-function setSidebarActive(sectionId) {
-  const sidebarLinks = document.querySelectorAll(".sidebar .nav-link");
-  sidebarLinks.forEach((link) => link.classList.remove("active"));
-
-  const activeLink = Array.from(sidebarLinks).find((link) => {
-    const onclick = link.getAttribute("onclick") || "";
-    return onclick.includes(`showSection('${sectionId}')`);
-  });
-
-  if (activeLink) activeLink.classList.add("active");
-}
-
-function showSection(sectionId) {
-  document.querySelectorAll(".content-section").forEach((section) => {
-    section.classList.remove("active");
-  });
-  const activeSection = document.getElementById(sectionId);
-  if (activeSection) activeSection.classList.add("active");
-
-  if (sectionId === "fines") {
-    loadLowAttendance();
-    loadFinesHistory();
+  if (countElement) {
+    const activeCount = data.filter(
+      (teacher) => teacher.status === "active",
+    ).length;
+    countElement.textContent = data.length;
   }
   if (sectionId === "students") loadStudents();
   if (sectionId === "teachers") loadTeachers();
@@ -1546,30 +1628,34 @@ async function updateFaceStats() {
   }
 }
 
-// Update showSection to refresh stats when face-sync is clicked
-const originalShowSection = window.showSection;
-window.showSection = function (sectionId) {
-  if (sectionId === "face-sync") {
-    updateFaceStats();
+function deleteTeacherRow(button) {
+  if (confirm("⚠️ Are you sure you want to delete this teacher?")) {
+    const row = button.closest("tr");
+    if (row) row.remove();
   }
-  if (typeof originalShowSection === "function") {
-    originalShowSection(sectionId);
-  } else {
-    // Fallback if original is not accessible
-    document
-      .querySelectorAll(".content-section")
-      .forEach((s) => s.classList.add("hidden"));
-    const target = document.getElementById(sectionId);
-    if (target) target.classList.remove("hidden");
-  }
-};
+}
 
-// ============================================
-// INITIALIZE
-// ============================================
+function viewUser(rollNo) {
+  alert(`👤 Viewing student: ${rollNo}`);
+}
+function editUser(rollNo) {
+  alert(`✏️ Editing student: ${rollNo}`);
+}
+function viewTeacher(name) {
+  alert(`👨‍🏫 Viewing teacher: ${name}`);
+}
+function editTeacher(name) {
+  alert(`✏️ Editing teacher: ${name}`);
+}
 
-loadStats();
-loadAttendanceTrendChart();
-initAddUserForm();
-initEditUserForm();
-ensureReportFormatOptions();
+function showSection(sectionId, event) {
+  document
+    .querySelectorAll(".content-section")
+    .forEach((section) => section.classList.remove("active"));
+  document
+    .querySelectorAll(".nav-link")
+    .forEach((link) => link.classList.remove("active"));
+  const selectedSection = document.getElementById(sectionId);
+  if (selectedSection) selectedSection.classList.add("active");
+  if (event && event.currentTarget) event.currentTarget.classList.add("active");
+}

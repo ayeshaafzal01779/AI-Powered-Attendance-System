@@ -2,7 +2,11 @@
 // STUDENT DASHBOARD - WITH DYNAMIC URL
 // ============================================
 
-const API_BASE_URL = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port : "");
+const API_BASE_URL =
+  window.location.protocol +
+  "//" +
+  window.location.hostname +
+  (window.location.port ? ":" + window.location.port : "");
 
 // Get user from localStorage
 const user = JSON.parse(localStorage.getItem("user"));
@@ -50,30 +54,32 @@ document.getElementById("userName").textContent = user.name;
 // SHOW MESSAGE - USING SWEETALERT2 TOAST
 // ============================================
 
-function showMessage(text, type = 'info') {
-    const iconColor = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6');
-    const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 4000,
-        timerProgressBar: true,
-        background: '#ffffff',
-        color: '#1e293b',
-        iconColor: iconColor,
-        didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer);
-            toast.addEventListener('mouseleave', Swal.resumeTimer);
-            toast.style.borderRadius = '12px';
-            toast.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
-            toast.style.borderLeft = `6px solid ${iconColor}`;
-        }
-    });
+function showMessage(text, type = "info") {
+  const iconColor =
+    type === "success" ? "#10b981" : type === "error" ? "#ef4444" : "#3b82f6";
+  const Toast = Swal.mixin({
+    toast: true,
+    position: "top-end",
+    showConfirmButton: false,
+    timer: 4000,
+    timerProgressBar: true,
+    background: "#ffffff",
+    color: "#1e293b",
+    iconColor: iconColor,
+    didOpen: (toast) => {
+      toast.addEventListener("mouseenter", Swal.stopTimer);
+      toast.addEventListener("mouseleave", Swal.resumeTimer);
+      toast.style.borderRadius = "12px";
+      toast.style.boxShadow =
+        "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
+      toast.style.borderLeft = `6px solid ${iconColor}`;
+    },
+  });
 
-    Toast.fire({
-        icon: type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info'),
-        title: `<div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">${type.charAt(0).toUpperCase() + type.slice(1)}</div><div style="font-weight: 400; font-size: 13px; color: #64748b;">${text}</div>`
-    });
+  Toast.fire({
+    icon: type === "success" ? "success" : type === "error" ? "error" : "info",
+    title: `<div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">${type.charAt(0).toUpperCase() + type.slice(1)}</div><div style="font-weight: 400; font-size: 13px; color: #64748b;">${text}</div>`,
+  });
 }
 
 // ============================================
@@ -124,7 +130,7 @@ async function pollActiveSessions() {
       `${API_BASE_URL}/active_sessions_for_student`,
       {
         credentials: "include",
-      }
+      },
     );
 
     if (!response || response.status === 401 || response.status === 403) {
@@ -138,7 +144,10 @@ async function pollActiveSessions() {
       // Sirf stopped sessions filter honge (is_active=0 backend query mein already hai)
       const sessions = (data.sessions || []).map((s) => ({
         ...s,
-        already_marked: s.already_marked == true || s.already_marked === 1 || markedSessionIds.has(s.session_id),
+        already_marked:
+          s.already_marked == true ||
+          s.already_marked === 1 ||
+          markedSessionIds.has(s.session_id),
       }));
       renderLiveSessionBanner(sessions);
     }
@@ -202,7 +211,8 @@ function renderLiveSessionBanner(sessions) {
 
   bannerContainer.innerHTML = validSessions
     .map((s) => {
-      const isMarked = s.already_marked === true || markedSessionIds.has(s.session_id);
+      const isMarked =
+        s.already_marked === true || markedSessionIds.has(s.session_id);
       const mode = (s.mode || "Pending").toLowerCase();
 
       // ✅ Agar already marked hai — alag "confirmed" UI dikhaو
@@ -312,7 +322,7 @@ function hideLiveCard(sessionId) {
     setTimeout(() => {
       card.remove();
       currentLiveSessions = currentLiveSessions.filter(
-        (s) => s.session_id !== sessionId
+        (s) => s.session_id !== sessionId,
       );
       const bannerContainer = document.getElementById("liveSessionBanner");
       if (bannerContainer && currentLiveSessions.length === 0) {
@@ -365,7 +375,7 @@ async function loadAttendance() {
           courseDiv.innerHTML = `
             <div class="course-info">
               <span class="course-name">${course.course_code} - ${course.course_name}</span>
-              <div class="course-teacher"><i class="fas fa-chalkboard-teacher me-1"></i> ${course.teacher_name || 'Assigned Teacher'}</div>
+              <div class="course-teacher"><i class="fas fa-chalkboard-teacher me-1"></i> ${course.teacher_name || "Assigned Teacher"}</div>
             </div>
             <span class="course-percentage ${colorClass}">${percentage}%</span>
           `;
@@ -397,7 +407,7 @@ async function loadAttendance() {
       loadAttendanceHistory();
 
       const lowCourses = data.attendance.filter(
-        (c) => parseFloat(c.percentage) < 75
+        (c) => parseFloat(c.percentage) < 75,
       );
       if (lowCourses.length > 0) {
         const alertBox = document.getElementById("alertBox");
@@ -428,104 +438,6 @@ async function loadAttendance() {
   }
 }
 
-// ============================================
-// LOAD ATTENDANCE HISTORY
-// ============================================
-
-async function loadAttendanceHistory() {
-    try {
-        const response = await apiCall("/my_attendance_history");
-        if (!response) return;
-
-        const data = await response.json();
-        const historyList = document.getElementById("attendanceHistoryList");
-
-        if (data.status === "success" && data.history && data.history.length > 0) {
-            historyList.innerHTML = data.history.map((record, index) => {
-                const isPresent = record.status.toLowerCase() === "present";
-                const statusClass = isPresent ? "status-present" : "status-absent";
-                const statusIcon = isPresent ? '' : '';
-                
-                // FIRST ROW (latest attendance) gets EYE-CATCHING style
-                const isLatest = index === 0;
-                
-                // Format date nicely
-                const recordDate = record.session_date;
-                const today = new Date().toISOString().split('T')[0];
-                const isToday = recordDate === today;
-                
-                let dateDisplay = recordDate;
-                let dateBadge = '';
-                
-                if (isLatest && isToday) {
-                    dateBadge = '<span style="background: #f55050; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; margin-left: 8px; animation: pulse 1s infinite;">JUST NOW</span>';
-                } else if (isLatest) {
-                    dateBadge = '<span style="background: #f59e0b; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; margin-left: 8px;">LATEST</span>';
-                } else if (isToday) {
-                    dateBadge = '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; margin-left: 8px;">TODAY</span>';
-                }
-                
-                return `
-                    <tr style="${isLatest ? 'background: linear-gradient(90deg, #fef3c7, #fffbeb); border-left: 4px solid #f59e0b; font-weight: 600; animation: slideIn 0.3s ease-out;' : ''}
-                           ${isToday && !isLatest ? 'background: #ecfdf5;' : ''}
-                           transition: all 0.3s ease;">
-                        <td data-label="Date" style="padding: 12px 15px;">
-                            <strong style="font-size: 14px;">${dateDisplay}</strong>
-                            ${dateBadge}
-                        </td>
-                        <td data-label="Course" style="padding: 12px 15px;">
-                            <div style="font-weight: 600;">${record.course_code}</div>
-                            <small style="color: #64748b;">${record.course_name}</small>
-                        </td>
-                        <td data-label="Status" style="padding: 12px 15px;">
-                            <span class="${statusClass}" style="font-weight: 600; font-size: 14px;">
-                                ${statusIcon} ${record.status.toUpperCase()}
-                            </span>
-                        </td>
-                        <td data-label="Mode" style="padding: 12px 15px;">
-                            <span class="mode-badge" style="background: ${isLatest ? '#f59e0b' : '#e2e8f0'}; 
-                                                           color: ${isLatest ? 'white' : '#475569'};
-                                                           padding: 4px 12px; border-radius: 20px; font-size: 12px;">
-                                <i class="fas ${record.mode === 'Face' ? 'fa-camera' : record.mode === 'QR' ? 'fa-qrcode' : 'fa-keyboard'}"></i>
-                                ${record.mode || 'System'}
-                            </span>
-                        </td>
-                        <td data-label="Time" style="padding: 12px 15px;">
-                            <span class="time-text" style="font-family: monospace; font-weight: 600; 
-                                                         background: ${isLatest ? '#fef3c7' : '#f1f5f9'};
-                                                         padding: 4px 8px; border-radius: 8px;">
-                                ${formatPkTime(record.marked_at)}
-                            </span>
-                        </td>
-                    </tr>
-                `;
-            }).join("");
-        } else {
-            if (historyList) {
-                historyList.innerHTML = `
-                    <tr>
-                        <td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">
-                            <i class="fas fa-calendar-alt" style="font-size: 40px; margin-bottom: 10px; display: block;"></i>
-                            No attendance records found.
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-    } catch (err) {
-        console.error("Error loading history:", err);
-        const historyList = document.getElementById("attendanceHistoryList");
-        if (historyList) {
-            historyList.innerHTML = `
-                <tr>
-                    <td colspan="5" style="text-align: center; padding: 40px; color: #ef4444;">
-                        <i class="fas fa-exclamation-circle"></i> Error loading history
-                    </td>
-                </tr>
-            `;
-        }
-    }
-}
 // ============================================
 // UPDATE CHART
 // ============================================
@@ -624,7 +536,7 @@ async function startQRScanner() {
   if (typeof Html5Qrcode === "undefined") {
     setScannerFallbackUI(
       true,
-      "QR scanner library cannot load. Enter Session ID manually."
+      "QR scanner library cannot load. Enter Session ID manually.",
     );
     return;
   }
@@ -635,7 +547,7 @@ async function startQRScanner() {
   if (!window.isSecureContext && !isLocalhost) {
     setScannerFallbackUI(
       true,
-      "Camera permission denied. Enter Session ID manually."
+      "Camera permission denied. Enter Session ID manually.",
     );
     return;
   }
@@ -649,7 +561,7 @@ async function startQRScanner() {
       { facingMode: "environment" },
       config,
       onQRSuccess,
-      onQRFailure
+      onQRFailure,
     );
     if (statusDiv) {
       statusDiv.textContent = "Scanning... Position QR code in frame";
@@ -663,7 +575,7 @@ async function startQRScanner() {
     }
     setScannerFallbackUI(
       true,
-      "Camera permission denied. Please enter Session ID manually."
+      "Camera permission denied. Please enter Session ID manually.",
     );
     isScanning = false;
   }
@@ -713,23 +625,23 @@ async function onQRSuccess(decodedText) {
   });
 
   if (res && (res.status === "success" || res.status === "already_marked")) {
-      const isAlready = res.status === "already_marked";
-      const title = isAlready ? "Already Marked" : "Attendance Successful";
-      const msg = isAlready 
-        ? (res.message || "You have already marked attendance for this session.") 
-        : "Your attendance has been recorded successfully via QR.";
-      const icon = isAlready ? "info" : "success";
-      const btnColor = isAlready ? "#64748b" : "#2980b9";
+    const isAlready = res.status === "already_marked";
+    const title = isAlready ? "Already Marked" : "Attendance Successful";
+    const msg = isAlready
+      ? res.message || "You have already marked attendance for this session."
+      : "Your attendance has been recorded successfully via QR.";
+    const icon = isAlready ? "info" : "success";
+    const btnColor = isAlready ? "#64748b" : "#2980b9";
 
-      Swal.fire({
-        title: title,
-        text: msg,
-        icon: icon,
-        confirmButtonText: "Perfect!",
-        confirmButtonColor: btnColor,
-        borderRadius: '20px',
-        allowOutsideClick: false
-      });
+    Swal.fire({
+      title: title,
+      text: msg,
+      icon: icon,
+      confirmButtonText: "Perfect!",
+      confirmButtonColor: btnColor,
+      borderRadius: "20px",
+      allowOutsideClick: false,
+    });
   }
 }
 
@@ -764,9 +676,10 @@ function enterSessionIdManually() {
     cancelButtonText: "Cancel",
     confirmButtonColor: "#2980b9",
     cancelButtonColor: "#64748b",
-    borderRadius: '20px',
+    borderRadius: "20px",
     inputAttributes: {
-        style: 'text-align: center; font-size: 1.2rem; font-weight: 700; padding: 12px; border-radius: 12px;'
+      style:
+        "text-align: center; font-size: 1.2rem; font-weight: 700; padding: 12px; border-radius: 12px;",
     },
     inputValidator: (value) => {
       if (!value || parseInt(value) <= 0) {
@@ -800,9 +713,10 @@ function enterSessionIdForSession(sessionId) {
     cancelButtonText: "Back",
     confirmButtonColor: "#2980b9",
     cancelButtonColor: "#64748b",
-    borderRadius: '20px',
+    borderRadius: "20px",
     inputAttributes: {
-        style: 'text-align: center; font-size: 1.2rem; font-weight: 700; padding: 12px; border-radius: 12px;'
+      style:
+        "text-align: center; font-size: 1.2rem; font-weight: 700; padding: 12px; border-radius: 12px;",
     },
     inputValidator: (value) => {
       if (!value || parseInt(value) <= 0) {
@@ -851,34 +765,38 @@ async function markAttendance({
       // ✅ Naya mark — banner update karo
       markedSessionIds.add(cardId);
       currentLiveSessions = currentLiveSessions.map((s) =>
-        s.session_id === cardId ? { ...s, already_marked: true } : s
+        s.session_id === cardId ? { ...s, already_marked: true } : s,
       );
       const bannerContainer = document.getElementById("liveSessionBanner");
       if (bannerContainer) bannerContainer.innerHTML = "";
       renderLiveSessionBanner(currentLiveSessions);
 
-      setTimeout(() => showMessage("Attendance marked successfully!", "success"), 300);
+      setTimeout(
+        () => showMessage("Attendance marked successfully!", "success"),
+        300,
+      );
       setTimeout(loadAttendance, 500);
-
     } else if (data.status === "already_marked") {
       // ✅ Already marked — banner green dikhaو, error mat dikhaو
       markedSessionIds.add(cardId);
       currentLiveSessions = currentLiveSessions.map((s) =>
-        s.session_id === cardId ? { ...s, already_marked: true } : s
+        s.session_id === cardId ? { ...s, already_marked: true } : s,
       );
       const bannerContainer = document.getElementById("liveSessionBanner");
       if (bannerContainer) bannerContainer.innerHTML = "";
       renderLiveSessionBanner(currentLiveSessions);
 
       showMessage(data.message || "Attendance already marked.", "info");
-
     } else {
       // ✅ Real error — enrollment issue, session closed, QR expired etc.
       showMessage(data.message || "Failed to mark attendance.", "error");
     }
   } catch (err) {
     console.error("Error marking attendance:", err);
-    showMessage("Network error. Please check your connection and try again.", "error");
+    showMessage(
+      "Network error. Please check your connection and try again.",
+      "error",
+    );
   }
 }
 
@@ -895,23 +813,36 @@ let faceCardSessionId = null;
 
 async function initFaceLandmarker() {
   if (faceLandmarker) return;
-  
+
   try {
     // Wait for CDN scripts to be available
-    if (typeof FilesetResolver === "undefined" || typeof FaceLandmarker === "undefined") {
+    if (
+      typeof FilesetResolver === "undefined" ||
+      typeof FaceLandmarker === "undefined"
+    ) {
       console.log("Waiting for Mediapipe scripts to load...");
-      for (let i = 0; i < 100; i++) { // Increase wait time to 10 seconds
-        if (typeof FilesetResolver !== "undefined" && typeof FaceLandmarker !== "undefined") break;
+      for (let i = 0; i < 100; i++) {
+        // Increase wait time to 10 seconds
+        if (
+          typeof FilesetResolver !== "undefined" &&
+          typeof FaceLandmarker !== "undefined"
+        )
+          break;
         await new Promise((r) => setTimeout(r, 100));
       }
     }
 
-    if (typeof FilesetResolver === "undefined" || typeof FaceLandmarker === "undefined") {
-      throw new Error("Mediapipe library failed to load from CDN. Please check your internet connection.");
+    if (
+      typeof FilesetResolver === "undefined" ||
+      typeof FaceLandmarker === "undefined"
+    ) {
+      throw new Error(
+        "Mediapipe library failed to load from CDN. Please check your internet connection.",
+      );
     }
 
     const filesetResolver = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
     );
 
     faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
@@ -923,33 +854,41 @@ async function initFaceLandmarker() {
       runningMode: "VIDEO",
       numFaces: 1,
     });
-    
+
     console.log("AI Models loaded successfully.");
   } catch (err) {
     console.error("AI Model loading error:", err);
-    
+
     // Fallback to CPU if GPU fails
     if (err.message && err.message.includes("GPU")) {
       console.log("GPU failed, retrying with CPU...");
       try {
-        const filesetResolver = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-            delegate: "CPU",
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
+        );
+        faceLandmarker = await FaceLandmarker.createFromOptions(
+          filesetResolver,
+          {
+            baseOptions: {
+              modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+              delegate: "CPU",
+            },
+            outputFaceBlendshapes: true,
+            runningMode: "VIDEO",
+            numFaces: 1,
           },
-          outputFaceBlendshapes: true,
-          runningMode: "VIDEO",
-          numFaces: 1,
-        });
+        );
         console.log("AI Models loaded successfully using CPU.");
         return;
       } catch (cpuErr) {
         console.error("CPU fallback also failed:", cpuErr);
       }
     }
-    
-    showMessage("AI Models failed to load. Please refresh the page or check your internet.", "error");
+
+    showMessage(
+      "AI Models failed to load. Please refresh the page or check your internet.",
+      "error",
+    );
   }
 }
 
@@ -958,11 +897,23 @@ function shuffleArray(array) {
   return array.sort(() => Math.random() - 0.5);
 }
 
-const baseChallenge = { type: "center", text: "Keep your face centered", icon: "fa-user" };
+const baseChallenge = {
+  type: "center",
+  text: "Keep your face centered",
+  icon: "fa-user",
+};
 const dynamicChallenges = [
   { type: "blink", text: "Now blink your eyes", icon: "fa-eye" },
-  { type: "left", text: "Turn your face to the LEFT side", icon: "fa-arrow-left" },
-  { type: "right", text: "Turn your face to the RIGHT side", icon: "fa-arrow-right" },
+  {
+    type: "left",
+    text: "Turn your face to the LEFT side",
+    icon: "fa-arrow-left",
+  },
+  {
+    type: "right",
+    text: "Turn your face to the RIGHT side",
+    icon: "fa-arrow-right",
+  },
 ];
 
 const challenges = [baseChallenge, ...shuffleArray(dynamicChallenges)];
@@ -1024,7 +975,7 @@ async function startFaceAttendance() {
     closeFaceModal();
     showMessage(
       "Camera access denied. Please allow camera permission and try again.",
-      "error"
+      "error",
     );
   }
 }
@@ -1076,29 +1027,23 @@ async function detectFrame() {
         if (nose.x > 0.3 && nose.x < 0.7) success = true;
       } else if (challenge.type === "blink") {
         const eyeBlinkLeft = blendshapes.find(
-          (b) => b.categoryName === "eyeBlinkLeft"
+          (b) => b.categoryName === "eyeBlinkLeft",
         ).score;
         const eyeBlinkRight = blendshapes.find(
-          (b) => b.categoryName === "eyeBlinkRight"
+          (b) => b.categoryName === "eyeBlinkRight",
         ).score;
         if (eyeBlinkLeft > 0.4 || eyeBlinkRight > 0.4) success = true;
       } else if (challenge.type === "left") {
         const nose = landmarks[1];
         const leftEye = landmarks[33];
         const rightEye = landmarks[263];
-        if (
-          Math.abs(nose.x - rightEye.x) <
-          Math.abs(nose.x - leftEye.x) * 0.6
-        )
+        if (Math.abs(nose.x - rightEye.x) < Math.abs(nose.x - leftEye.x) * 0.6)
           success = true;
       } else if (challenge.type === "right") {
         const nose = landmarks[1];
         const leftEye = landmarks[33];
         const rightEye = landmarks[263];
-        if (
-          Math.abs(nose.x - leftEye.x) <
-          Math.abs(nose.x - rightEye.x) * 0.6
-        )
+        if (Math.abs(nose.x - leftEye.x) < Math.abs(nose.x - rightEye.x) * 0.6)
           success = true;
       }
 
@@ -1159,7 +1104,10 @@ async function captureAndMatch() {
     if (!response) {
       stopCamera();
       document.getElementById("faceModal").classList.add("hidden");
-      showMessage("Could not connect to server. Please check your connection.", "error");
+      showMessage(
+        "Could not connect to server. Please check your connection.",
+        "error",
+      );
       return;
     }
 
@@ -1170,22 +1118,23 @@ async function captureAndMatch() {
       const isAlready = data.status === "already_marked";
       showMessage(
         isAlready
-          ? (data.message || "Attendance already marked for this session.")
+          ? data.message || "Attendance already marked for this session."
           : "Attendance marked successfully!",
-        isAlready ? "info" : "success"
+        isAlready ? "info" : "success",
       );
 
       if (faceCardSessionId) {
         markedSessionIds.add(faceCardSessionId);
         currentLiveSessions = currentLiveSessions.map((s) =>
-          s.session_id === faceCardSessionId ? { ...s, already_marked: true } : s
+          s.session_id === faceCardSessionId
+            ? { ...s, already_marked: true }
+            : s,
         );
         const bannerContainer = document.getElementById("liveSessionBanner");
         if (bannerContainer) bannerContainer.innerHTML = "";
         renderLiveSessionBanner(currentLiveSessions);
       }
       setTimeout(loadAttendance, 500);
-
     } else {
       stopCamera();
       document.getElementById("faceModal").classList.add("hidden");
@@ -1207,7 +1156,6 @@ async function captureAndMatch() {
         // Cancel dabaya — modal band rehta hai, kuch nahi hota
       });
     }
-
   } catch (err) {
     console.error("Match error:", err);
     stopCamera();
@@ -1298,7 +1246,7 @@ async function loadFines() {
           </button>
         </div>
       </div>
-    `
+    `,
       )
       .join("")}
   `;
@@ -1701,24 +1649,3 @@ function printReceipt() {
     printWindow.print();
   }, 500);
 }
-
-// Download PDF
-function downloadReceipt() {
-  const element = document.getElementById("receiptContent");
-  const opt = {
-    margin: 0.5,
-    filename: "payment-receipt.pdf",
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-  };
-  html2pdf().set(opt).from(element).save();
-}
-
-// ============================================
-// INITIALIZE
-// ============================================
-
-loadAttendance();
-startPolling();
-
